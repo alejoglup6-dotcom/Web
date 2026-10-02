@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SampCity RolePlay | Comunidad</title>
+<meta name="description" content="Comunidad de rol de GTA San Andreas (SA-MP): noticias, actualizaciones, staff, fotos y tu perfil.">
+<meta name="theme-color" content="#0e0a0c"><link rel="icon" href="assets/favicon.png"><link rel="manifest" href="manifest.webmanifest">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Russo+One&display=swap" rel="stylesheet">
+<style>
+:root{--rosa:#F59D99;--rojo:#E8392F;--gr:#9E150F;--bg:#0e0a0c;--card:#181115;--in:#0e0a0c;--b:#33252b;--t:#f6f1f2;--m:#b3a3a8;--nav:4rem}
+*{box-sizing:border-box;margin:0}
+html{color-scheme:dark;-webkit-text-size-adjust:100%;scroll-padding-top:5rem;font-size:16px}
+body{font-family:Poppins,system-ui,sans-serif;background:radial-gradient(60rem 28rem at 85% -8%,rgba(232,57,47,.18),transparent),var(--bg);color:var(--t);line-height:1.55;min-height:100dvh;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom))}
+a{color:inherit;text-decoration:none}button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--rosa);outline-offset:3px;border-radius:8px}
+.top{position:sticky;top:0;z-index:5;background:rgba(18,12,15,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--b);display:flex;align-items:center;gap:.6rem;padding:calc(.5rem + env(safe-area-inset-top)) .8rem .5rem}
+.top img{height:1.9rem;width:auto}.sp{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;border:1px solid var(--b);background:var(--card);padding:.5rem 1rem;border-radius:999px;font-weight:600;font-size:.9rem;min-height:2.5rem}
+.btn.p{background:linear-gradient(180deg,var(--rojo),var(--gr));border-color:var(--rojo)}.btn.s{padding:.3rem .8rem;font-size:.82rem;min-height:2.2rem}
+.lay{display:grid;gap:1rem;max-width:90rem;margin:1rem auto;padding:0 .75rem;grid-template-columns:minmax(0,1fr);grid-template-areas:"main" "right"}
+main{grid-area:main;min-width:0}.right{grid-area:right;display:grid;gap:0 1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));align-content:start}.menu{grid-area:menu;display:none}
+.card{background:var(--card);border:1px solid var(--b);border-radius:1rem;padding:1rem;margin-bottom:1rem}
+.card h3{font-family:"Russo One";font-weight:400;color:var(--rosa);margin-bottom:.5rem;font-size:1.1rem}
+.menu a{display:flex;gap:.7rem;padding:.65rem .8rem;border-radius:.7rem;color:var(--m);font-weight:600}
+.menu a:hover,.menu a.on{background:#251a20;color:var(--t)}.menu a.on{box-shadow:inset 3px 0 var(--rojo)}
+.tabs{position:fixed;inset:auto 0 0;z-index:6;display:grid;grid-template-columns:repeat(5,1fr);background:#120c0f;border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
+.tabs>*{background:none;border:0;display:grid;justify-items:center;align-content:center;gap:.1rem;min-height:var(--nav);font-size:.7rem;color:var(--m)}.tabs span{font-size:1.25rem;line-height:1}.tabs .on{color:var(--rosa)}
+.hero{position:relative;overflow:hidden;border-radius:1rem;margin-bottom:1rem;padding:1.4rem 1.1rem;border:1px solid var(--b);background:linear-gradient(90deg,rgba(14,10,12,.92),rgba(14,10,12,.45)),url(assets/fondo.webp) center/cover}
+.hero img{width:min(18rem,70%);display:block}.hero p{margin:.6rem 0 1rem;max-width:34rem;color:#e6d9dc}.hero .row{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{font-size:.8rem;padding:.2rem .7rem;border-radius:99px;background:rgba(0,0,0,.45);border:1px solid var(--b)}
+.post .h{display:flex;gap:.7rem;align-items:center;margin-bottom:.5rem}.av{flex:none;width:2.5rem;height:2.5rem;border-radius:50%;background:var(--gr);display:grid;place-items:center;font-family:"Russo One"}
+.tag{font-size:.7rem;padding:.1rem .6rem;border-radius:99px;background:rgba(232,57,47,.18);color:var(--rosa);margin-left:.4rem;white-space:nowrap}
+small,.m{color:var(--m)}.post p{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:.4rem;max-width:70ch}
+input,textarea{width:100%;background:var(--in);border:1px solid var(--b);border-radius:.7rem;padding:.7rem;color:var(--t);font:inherit;font-size:1rem;margin:.35rem 0}
+.cover{height:9rem;border-radius:1rem 1rem 0 0;background:linear-gradient(transparent,rgba(24,17,21,.8)),url(assets/fondo.webp) center/cover;margin:-1rem -1rem 0}
+.pr{display:flex;gap:.9rem;align-items:flex-end;margin-top:-2.4rem;padding:0 .3rem;flex-wrap:wrap}.pr img{width:5.5rem;height:5.5rem;border-radius:50%;border:4px solid var(--card);background:var(--card)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.6rem;margin-top:1rem}.kv div{background:var(--in);border:1px solid var(--b);border-radius:.7rem;padding:.6rem .8rem}.kv b{display:block}
+.dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:#665;margin-right:.4rem}.dot.on{background:#2ecc71}
+.gal{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,13rem),1fr))}
+.gal button{border:1px solid var(--b);background:var(--in);padding:0;border-radius:.8rem;overflow:hidden;text-align:left}.gal img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}.gal small{display:block;padding:.4rem .6rem}
+.stf{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))}.stf>div{display:flex;gap:.7rem;align-items:center;background:var(--in);border:1px solid var(--b);border-radius:.8rem;padding:.6rem}
+.act{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem}.cm{margin-top:.6rem;display:grid;gap:.5rem}.cmt{background:var(--in);border:1px solid var(--b);border-radius:.7rem;padding:.5rem .7rem;overflow-wrap:anywhere}.cf{display:flex;gap:.5rem;align-items:center;margin-top:.5rem}.cf input{margin:0}.lk{background:none;border:0;color:var(--rosa);font-size:.75rem;text-decoration:underline}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;place-items:center;z-index:9;padding:.9rem}.modal.on{display:grid}.modal .card{width:min(28rem,100%);max-height:92dvh;overflow:auto;margin:0}.modal.big .card{width:min(60rem,100%)}.modal img{max-width:100%;border-radius:.7rem}
+.mm{display:grid;gap:.4rem}.msg{color:#ff8b84;font-size:.85rem;min-height:1.2em}.ok{color:#6ee7a1}
+.sk{height:7rem;background:linear-gradient(90deg,var(--card),#251a20,var(--card));background-size:200% 100%;animation:sh 1.3s linear infinite}@keyframes sh{to{background-position:-200% 0}}
+.ft{text-align:center;color:var(--m);font-size:.8rem;padding:1rem 1rem 2rem}
+@media(hover:none) and (pointer:coarse){.btn{min-height:2.9rem}.menu a{padding:.85rem}}
+@media(min-width:720px){body{padding-bottom:0}.tabs{display:none}.top{padding-inline:1.2rem}.top img{height:2.3rem}
+ .lay{padding:0 1rem;grid-template-columns:12.5rem minmax(0,1fr);grid-template-areas:"menu main" "menu right"}.menu{display:block;position:sticky;top:5rem;align-self:start}.hero{padding:2rem 1.8rem}.cover{height:12rem}}
+@media(min-width:1100px){.lay{grid-template-columns:14.5rem minmax(0,1fr) 19.5rem;grid-template-areas:"menu main right"}.right{display:block;position:sticky;top:5rem;align-self:start}}
+@media(min-width:1700px){html{font-size:clamp(20px,1.1vw,36px)}}
+body.tv :focus-visible{outline-width:.28rem;outline-offset:.25rem}body.tv .btn,body.tv .menu a{min-height:3rem}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+</style></head><body>
+<header class="top"><a href="#news" aria-label="Inicio"><img src="assets/logo.png" alt="SampCity"></a><span class="sp"></span><span id="auth"></span></header>
+<div class="lay">
+ <nav class="card menu" id="menu" style="padding:.5rem" aria-label="Secciones"></nav>
+ <main id="main" tabindex="-1"></main>
+ <aside class="right">
+  <div class="card"><h3>💬 Discord</h3><p class="m" style="font-size:.9rem">Soporte, anuncios y eventos de la comunidad.</p><a class="btn p" style="margin-top:.7rem" href="https://discord.gg/QU7YWerPfV" target="_blank" rel="noopener">Unirme</a></div>
+  <div class="card"><h3>🎵 TikTok</h3><p class="m" style="font-size:.9rem">Síguenos en <b>@sampcity.oficial</b></p><a class="btn" style="margin-top:.7rem" href="https://www.tiktok.com/@sampcity.oficial" target="_blank" rel="noopener">Ver perfil</a></div>
+  <div class="card"><h3>🛡️ Staff</h3><div id="mini" class="m">Cargando…</div></div>
+ </aside>
+</div>
+<footer class="ft">© SampCity RolePlay · Comunidad no oficial de Rockstar Games / SA-MP</footer>
+<nav class="tabs" id="tabs" aria-label="Navegación"></nav>
+<div class="modal" id="mod" role="dialog" aria-modal="true"><div class="card" id="modc"></div></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api=(u,o={})=>fetch("/api"+u,{credentials:"same-origin",...o,headers:{"Content-Type":"application/json"},body:o.body?JSON.stringify(o.body):undefined}).then(async r=>{const d=await r.json().catch(()=>null);return d?{ok:r.ok,d}:{ok:false,d:{error:"La web no está conectada a su servidor (el backend no responde)"}}}).catch(()=>({ok:false,d:{error:"Sin conexión con el servidor"}}));
+const NAV=[["news","📰","Noticias"],["update","🛠️","Actualizaciones"],["faq","❓","FAQs"],["fotos","📸","Fotos"],["staff","🛡️","Staff"],["reglas","📜","Reglas"],["comunidad","👥","Comunidad"],["perfil","👤","Mi perfil"]];
+const RANGOS=["Ciudadano","Ayudante","Moderador","Operador","Administrador","Desarrollador"],TIT={news:"Noticias",update:"Actualizaciones",faq:"Preguntas frecuentes",photo:"Fotos",rules:"Reglas"};
+let U=null,INFO={},view="news",tok=0;
+const fecha=s=>new Date(String(s).replace(" ","T")).toLocaleDateString("es-CO",{day:"numeric",month:"short",year:"numeric"}),horas=s=>Math.floor(Number(s||0)/3600)+" h",money=n=>"$"+Number(n||0).toLocaleString("es-CO");
+const link=(v,i,t)=>`<a href="#${v}" data-v="${v}"><span>${i}</span>${t}</a>`;
+$("#menu").innerHTML=NAV.map(n=>link(...n)).join("");
+$("#tabs").innerHTML=["news","fotos","comunidad","perfil"].map(v=>{const n=NAV.find(x=>x[0]===v);return link(v,n[1],v==="perfil"?"Perfil":n[2])}).join("")+`<button id="more"><span>☰</span>Más</button>`;
+$("#more").onclick=()=>modal(`<h3>Más secciones</h3><div class="mm">${["update","faq","reglas","staff"].map(v=>{const n=NAV.find(x=>x[0]===v);return link(v,n[1],n[2]).replace("<a ",'<a class="btn" onclick="cerrar()" ')}).join("")}</div>`);
+function modal(h,big){$("#modc").innerHTML=h;$("#mod").classList.toggle("big",!!big);$("#mod").classList.add("on");($("#modc input,#modc .btn")||{focus(){}}).focus()}function cerrar(){$("#mod").classList.remove("on")}
+$("#mod").onclick=e=>{if(e.target.id==="mod")cerrar()};addEventListener("keydown",e=>{if(e.key==="Escape")cerrar()});
+function bar(){$("#auth").innerHTML=U?`<a class="btn s" href="#perfil">👤 ${esc(U.name.replace(/_/g," "))}</a> <button class="btn s" onclick="salir()">Salir</button>`:`<button class="btn s" onclick="login()">Iniciar sesión</button> <button class="btn p s" onclick="registro()">Registrarme</button>`}
+function login(){modal(`<h3>Iniciar sesión</h3><p class="m" style="font-size:.85rem">Usa el mismo nombre y contraseña de tu cuenta del servidor.</p><input id="ln" placeholder="Nombre_Apellido" autocomplete="username" autocapitalize="none"><input id="lp" type="password" placeholder="Contraseña" autocomplete="current-password"><div class="msg" id="lm" role="alert"></div><button class="btn p" id="lb">Entrar</button> <button class="btn" onclick="cerrar()">Cancelar</button>`);
+ const go1=async()=>{const r=await api("/login",{method:"POST",body:{name:$("#ln").value,password:$("#lp").value}});if(!r.ok)return $("#lm").textContent=r.d.error||"Error";cerrar();await init();location.hash="perfil";show("perfil")};
+ $("#lb").onclick=go1;$("#lp").onkeydown=e=>{if(e.key==="Enter")go1()}}
+function registro(){modal(`<h3>Crear cuenta</h3><p style="font-size:.9rem;margin:.4rem 0">Tu cuenta se crea <b>dentro del juego</b>, al conectarte por primera vez: eliges tu contraseña y creas tu personaje.</p><ol class="m" style="font-size:.88rem;padding-left:1.2rem;margin:.5rem 0 .8rem"><li>Entra al Discord y sigue los pasos para conectarte.</li><li>Conéctate con tu nombre <b>Nombre_Apellido</b> y regístrate.</li><li>Vuelve aquí e inicia sesión con esos mismos datos.</li></ol><a class="btn p" href="https://discord.gg/QU7YWerPfV" target="_blank" rel="noopener">Ir al Discord</a> <button class="btn" onclick="cerrar()">Cerrar</button>`)}
+async function salir(){await api("/logout",{method:"POST",body:{}});U=null;bar();location.hash="news";show("news")}
+const sk=()=>'<div class="card sk"></div>'.repeat(3),fail=(m,v)=>`<div class="card"><p class="m">${esc(m||"No se pudo cargar")}</p><button class="btn s" style="margin-top:.6rem" onclick="show('${v}')">Reintentar</button></div>`;
+function postHtml(p){(window.PS=window.PS||{})[p.id]=p;const soc=p.type!=="rules"&&p.type!=="faq";return `<article class="card post"><div class="h"><div class="av">${esc(p.author[0]||"S")}</div><div><b>${esc(p.author)}</b><span class="tag">${TIT[p.type]||""}</span><br><small>${fecha(p.created_at)}</small></div></div><h3 style="margin:0">${esc(p.title)}</h3><p>${esc(p.body)}</p><div class="act">${soc?`<button class="btn s${p.mine>0?" p":""}" id="l${p.id}" onclick="like(${p.id})">👍 <span>${p.likes}</span></button><button class="btn s" id="cb${p.id}" onclick="coms(${p.id})">💬 <span>${p.comments}</span></button>`:""}${U?.canPost?`<button class="btn s" onclick="editar(${p.id})">Editar</button><button class="btn s" onclick="borrar(${p.id})">Eliminar</button>`:""}</div><div id="c${p.id}"></div></article>`}
+async function like(id){if(!U)return login();const r=await api("/posts/"+id+"/like",{method:"POST",body:{}});if(!r.ok)return;const b=$("#l"+id);b.classList.toggle("p",r.d.liked);b.querySelector("span").textContent=r.d.likes}
+async function coms(id){const b=$("#c"+id);if(b.dataset.open){b.innerHTML="";delete b.dataset.open;return}b.dataset.open=1;await cargarC(id)}
+async function cargarC(id){const b=$("#c"+id),r=await api("/posts/"+id+"/comments");if(!r.ok)return b.innerHTML=`<p class="msg">${esc(r.d.error)}</p>`;
+ b.innerHTML=`<div class="cm">${r.d.map(c=>`<div class="cmt"><b>${esc(c.author.replace(/_/g," "))}</b> <small>${fecha(c.created_at)}</small>${c.del?` <button class="lk" onclick="delC(${id},${c.id})">borrar</button>`:""}<br>${esc(c.body)}</div>`).join("")||"<small>Sé el primero en comentar.</small>"}</div>${U?`<div class="cf"><input id="ci${id}" maxlength="300" placeholder="Escribe un comentario…"><button class="btn p s" onclick="sendC(${id})">Enviar</button></div><div class="msg" id="cm${id}"></div>`:'<button class="btn s" style="margin-top:.5rem" onclick="login()">Inicia sesión para comentar</button>'}`;
+ $("#cb"+id+" span").textContent=r.d.length;const i=$("#ci"+id);if(i)i.onkeydown=e=>{if(e.key==="Enter")sendC(id)}}
+async function sendC(id){const v=$("#ci"+id).value.trim();if(!v)return;const r=await api("/posts/"+id+"/comments",{method:"POST",body:{body:v}});if(!r.ok)return $("#cm"+id).textContent=r.d.error;cargarC(id)}
+async function delC(id,c){await api("/posts/"+id+"/comments/"+c,{method:"DELETE"});cargarC(id)}
+function editar(id){const p=PS[id];modal(`<h3>Editar publicación</h3><input id="et" maxlength="120" value="${esc(p.title)}">${p.type==="photo"?"":`<textarea id="eb" rows="6" maxlength="4000">${esc(p.body)}</textarea>`}<div class="msg" id="em"></div><button class="btn p" id="es">Guardar</button> <button class="btn" onclick="cerrar()">Cancelar</button>`);
+ $("#es").onclick=async()=>{const r=await api("/posts/"+id,{method:"PUT",body:{title:$("#et").value,body:$("#eb")?$("#eb").value:p.body}});if(!r.ok)return $("#em").textContent=r.d.error;cerrar();show(view)}}
+async function pic(f){const bm=await createImageBitmap(f),k=Math.min(1,1600/Math.max(bm.width,bm.height)),c=document.createElement("canvas");c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext("2d").drawImage(bm,0,0,c.width,c.height);let q=.85,d;do{d=c.toDataURL("image/jpeg",q);q-=.1}while(d.length>1100000&&q>.3);return d}
+function hero(){return `<section class="hero"><img src="assets/logo.png" alt="SampCity"><p>Comunidad de rol de GTA San Andreas en SA-MP. Entérate de las novedades, conoce al staff y revisa tu cuenta.</p><div class="row"><a class="btn p" href="https://discord.gg/QU7YWerPfV" target="_blank" rel="noopener">💬 Unirme al Discord</a>${INFO.ip?`<button class="btn" onclick="navigator.clipboard.writeText('${esc(INFO.ip)}').then(()=>this.textContent='✅ Copiada')">📋 Copiar IP</button>`:""}${INFO.total!=null?`<span class="chip"><span class="dot ${INFO.online?"on":""}"></span>${INFO.online} en línea</span><span class="chip">${INFO.total} jugadores</span>`:""}</div></section>`}
+function form(t){const f=t==="photo";return `<div class="card"><h3>Publicar en ${TIT[t]}</h3><input id="pt" maxlength="120" placeholder="${f?"Pie de foto":"Título"}">${f?'<input id="pf" type="file" accept="image/*"><input id="pb" type="url" inputmode="url" placeholder="…o pega un enlace https:// de la imagen">':'<textarea id="pb" rows="3" maxlength="4000" placeholder="Escribe aquí…"></textarea>'}<div class="msg" id="pm"></div><button class="btn p" onclick="publicar('${t}')">Publicar</button></div>`}
+const V={
+async feed(t){const r=await api("/posts?type="+t);if(!r.ok)return fail(r.d.error,t);return (t==="news"?hero():"")+(U?.canPost?form(t):"")+(r.d.length?r.d.map(postHtml).join(""):`<div class="card m">Aún no hay publicaciones.</div>`)},
+async fotos(){const r=await api("/posts?type=photo");if(!r.ok)return fail(r.d.error,"fotos");const ok=r.d.filter(p=>/^(https:\/\/|\/img\/\d+$)/.test(p.body));window.PH=ok;
+ return (U?.canPost?form("photo"):"")+`<div class="card"><h3>📸 Fotos</h3>${ok.length?`<div class="gal">${ok.map((p,i)=>`<button onclick="foto(${i})"><img loading="lazy" src="${esc(p.body)}" alt="${esc(p.title)}"><small>${esc(p.title)}</small></button>`).join("")}</div>`:'<p class="m">Aún no hay fotos. El staff las publica desde aquí.</p>'}</div>`},
+async staff(){const r=await api("/staff");if(!r.ok)return fail(r.d.error,"staff");return `<div class="card"><h3>🛡️ Equipo de SampCity</h3><div class="stf">${r.d.map(s=>`<div><div class="av">${esc(s.name[0])}</div><div><b>${esc(s.name.replace(/_/g," "))}</b><span class="tag">${RANGOS[s.level]||""}</span><br><small><span class="dot ${Number(s.connected)?"on":""}"></span>${Number(s.connected)?"En línea":"Desconectado"}</small></div></div>`).join("")||'<p class="m">Sin datos.</p>'}</div></div>`},
+comunidad(){return `<div class="card"><h3>👥 Comunidad</h3><p class="m">Aquí está nuestra gente: charla, eventos, soporte y mucho rol.</p><p style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap"><a class="btn p" href="https://discord.gg/QU7YWerPfV" target="_blank" rel="noopener">💬 Discord</a><a class="btn" href="https://www.tiktok.com/@sampcity.oficial" target="_blank" rel="noopener">🎵 TikTok</a></p></div><div class="card"><h3>📸 Fotos</h3><p class="m">Mira las capturas de la comunidad.</p><a class="btn" style="margin-top:.6rem" href="#fotos">Ver galería</a></div>`},
+perfil(){if(!U)return `<div class="card"><h3>👤 Mi perfil</h3><p class="m">Inicia sesión para ver los datos de tu cuenta.</p><button class="btn p" style="margin-top:.7rem" onclick="login()">Iniciar sesión</button></div>`;
+ const d=U.discord;setTimeout(()=>{const p=new URLSearchParams(location.search).get("discord");if(p&&$("#dm")){$("#dm").textContent={ok:"¡Cuenta vinculada!",duplicado:"Esa cuenta de Discord o de SA-MP ya está vinculada.",error:"No se pudo vincular, inténtalo de nuevo."}[p]||"";if(p==="ok")$("#dm").className="msg ok";history.replaceState(null,"","/#perfil")}});
+ return `<div class="card"><div class="cover"></div><div class="pr"><img src="assets/icono.png" alt=""><div><h2 style="font-family:'Russo One';font-weight:400">${esc(U.name.replace(/_/g," "))}</h2><span class="tag" style="margin:0">${U.rango}</span>${U.vip>0?'<span class="tag">VIP</span>':""}</div></div>
+ <div class="kv"><div><small>Nivel</small><b>${esc(U.level)}</b></div><div><small>Reputación</small><b>${esc(U.rep)}</b></div><div><small>Tiempo jugado</small><b>${horas(U.time_playing)}</b></div><div><small>Efectivo</small><b>${money(U.cash)}</b></div><div><small>Banco</small><b>${money(U.bank_money)}</b></div><div><small>Facción</small><b>${esc(U.crew||"Ninguna")}</b></div><div><small>Teléfono</small><b>${esc(U.phone_number||"—")}</b></div><div><small>Arrestos</small><b>${esc(U.arrests_count??0)}</b></div><div><small>Registro</small><b>${fecha(U.reg_date)}</b></div><div><small>Última conexión</small><b>${Number(U.connected)?"En línea":fecha(U.last_connection)}</b></div></div></div>
+ <div class="card"><h3>🔗 Vincular con Discord</h3>${d?`<p>✅ Cuenta vinculada (ID <b>${esc(d.discord_id)}</b>)</p><button class="btn s" style="margin-top:.6rem" onclick="desv()">Desvincular</button>`:`<p class="m" style="font-size:.9rem">Vincula tu cuenta para usar los comandos del bot y recibir tu rol.</p><a class="btn p" style="margin-top:.6rem" href="/auth/discord">Vincular con Discord</a>`}<div class="msg" id="dm" role="status"></div></div>`}};
+function foto(i){const p=window.PH[i];modal(`<img src="${esc(p.body)}" alt="${esc(p.title)}"><p style="margin:.6rem 0"><b>${esc(p.title)}</b><br><small>${esc(p.author)} · ${fecha(p.created_at)}</small></p><button class="btn" onclick="cerrar()">Cerrar</button>`,1)}
+async function publicar(t){let r;const f=$("#pf")?.files[0];if(f){$("#pm").textContent="Subiendo…";try{r=await api("/photos",{method:"POST",body:{title:$("#pt").value,data:await pic(f)}})}catch{return $("#pm").textContent="No pude leer esa imagen"}}else r=await api("/posts",{method:"POST",body:{type:t,title:$("#pt").value,body:$("#pb").value}});if(!r.ok)return $("#pm").textContent=r.d.error;show(view)}
+async function borrar(id){if(confirm("¿Eliminar esta publicación?")){await api("/posts/"+id,{method:"DELETE"});show(view)}}
+async function desv(){if(confirm("¿Desvincular tu Discord?")){await api("/discord",{method:"DELETE"});await init();show("perfil")}}
+async function show(v){if(!NAV.some(n=>n[0]===v))v="news";view=v;const my=++tok;
+ document.querySelectorAll("[data-v]").forEach(a=>a.classList.toggle("on",a.dataset.v===v));$("#main").innerHTML=sk();
+ const h=await(["news","update","faq"].includes(v)?V.feed(v):v==="reglas"?V.feed("rules"):V[v]());if(my!==tok)return;$("#main").innerHTML=h;scrollTo(0,0)}
+addEventListener("hashchange",()=>show(location.hash.slice(1)));
+async function init(){U=(await api("/me")).d.user||null;bar()}
+// Navegación con control remoto (flechas) en televisores
+if(/Tizen|Web0S|WebOS|SMART-?TV|AFT|Android.*TV|BRAVIA|Roku|CrKey|HbbTV/i.test(navigator.userAgent)||/[?&]tv=1/.test(location.search)){document.body.classList.add("tv");
+ addEventListener("keydown",e=>{const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key],a=document.activeElement;if(!d||/INPUT|TEXTAREA/.test(a.tagName))return;
+  const els=[...document.querySelectorAll("a[href],button")].filter(x=>x.offsetParent);e.preventDefault();if(!els.includes(a))return els[0]?.focus();
+  const c=a.getBoundingClientRect(),cx=c.x+c.width/2,cy=c.y+c.height/2;let best=null,bs=1e9;
+  for(const x of els){if(x===a)continue;const r=x.getBoundingClientRect(),dx=r.x+r.width/2-cx,dy=r.y+r.height/2-cy,al=dx*d[0]+dy*d[1];if(al<=1)continue;const s=al+Math.abs(d[0]?dy:dx)*2;if(s<bs){bs=s;best=x}}
+  if(best){best.focus();best.scrollIntoView({block:"center"})}})}
+(async()=>{const q=new URLSearchParams(location.search);await init();show(q.get("discord")?"perfil":location.hash.slice(1)||"news");
+ api("/info").then(r=>{if(r.ok){INFO=r.d;if(view==="news")show("news")}});
+ api("/staff").then(s=>{$("#mini").innerHTML=(s.ok&&s.d.slice(0,6).map(x=>`<div style="margin:.25rem 0"><span class="dot ${Number(x.connected)?"on":""}"></span>${esc(x.name.replace(/_/g," "))} <small>· ${RANGOS[x.level]}</small></div>`).join(""))||"Sin datos"});
+ if(q.get("login")&&!U)login()})();
+</script></body></html>
