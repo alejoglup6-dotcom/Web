@@ -175,7 +175,7 @@ const staffOnly = async (req, res) => { const u = await me(req); if (!u || u.adm
 app.get("/api/posts", async (req, res) => {
   const type = TYPES.includes(req.query.type) ? req.query.type : null, uid = sessionId(req) || 0;
   const paged = req.query.page !== undefined, per = paged ? 12 : 50, pg = Math.min(1000, Math.max(0, Number(req.query.page) || 0)); // con ?page= devuelve 12 (+1 para saber si hay siguiente)
-  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${type ? "WHERE p.type = ?" : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [...(type ? [uid, type] : [uid]), paged ? per + 1 : per, pg * per]));
+  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, (SELECT ${SKIN_COL} FROM player WHERE name = p.author LIMIT 1) AS skin, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${type ? "WHERE p.type = ?" : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [...(type ? [uid, type] : [uid]), paged ? per + 1 : per, pg * per]));
 });
 app.post("/api/posts", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
