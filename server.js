@@ -8,27 +8,30 @@ const bcrypt = require("bcryptjs");
 const E = process.env;
 const BASE = (E.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 const SECRET = E.SESSION_SECRET || "";
-if (SECRET.length < 24) throw new Error("Pon un SESSION_SECRET largo en el .env");
+if (SECRET.length < 24 || /^cambia-esto/i.test(SECRET)) throw new Error("Pon un SESSION_SECRET largo y aleatorio en el .env (no uses el de ejemplo)");
+const HTTPS = BASE.startsWith("https"), ORIGIN = new URL(BASE).origin;
+const str = (v) => (typeof v === "string" ? v : ""); // solo texto: objetos/arreglos en el JSON se ignoran
+const pid = (v) => { const n = Number(v); return Number.isSafeInteger(n) && n > 0 ? n : 0; }; // ids válidos (enteros positivos)
 const MIN_POST = Number(E.POST_MIN_LEVEL) || 4;
 const ADMIN_LEVELS = ["Ciudadano", "Ayudante", "Moderador", "Operador", "Administrador", "Desarrollador"];
 
-const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: 5, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
+const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: 5, ssl: E.MYSQL_SSL === "1" ? { minVersion: "TLSv1.2", rejectUnauthorized: E.MYSQL_SSL_STRICT !== "0" } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
 const q = async (sql, p) => (await pool.query(sql, p))[0];
 
 // ---- Sesión: cookie firmada (HMAC), HttpOnly, 7 días ----
 const sign = (v) => crypto.createHmac("sha256", SECRET).update(v).digest("base64url");
 function setSession(res, id, extra = "") {
   const v = `${id}.${Date.now() + 7 * 864e5}`;
-  res.append("Set-Cookie", `sc=${v}.${sign(v)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${BASE.startsWith("https") ? "; Secure" : ""}${extra}`);
+  res.append("Set-Cookie", `sc=${v}.${sign(v)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${HTTPS ? "; Secure" : ""}${extra}`);
 }
 function sessionId(req) {
   const m = (req.headers.cookie || "").match(/(?:^|; )sc=([^;]+)/);
   if (!m) return null;
   const [id, exp, sig] = m[1].split(".");
-  const ok = sig && sig.length === sign(`${id}.${exp}`).length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(sign(`${id}.${exp}`)));
+  const ok = id && exp && sig && sig.length === sign(`${id}.${exp}`).length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(sign(`${id}.${exp}`)));
   return ok && Number(exp) > Date.now() && /^\d+$/.test(id) ? Number(id) : null;
 }
-const clearSession = (res) => res.append("Set-Cookie", "sc=; Path=/; HttpOnly; Max-Age=0");
+const clearSession = (res) => res.append("Set-Cookie", `sc=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${HTTPS ? "; Secure" : ""}`);
 
 // ---- Contraseñas: igual que snrp.pwn (bcrypt $2a/$2b/$2y, o SHA256(clave + sal) en mayúsculas) ----
 function checkPassword(input, salt, stored) {
@@ -38,19 +41,51 @@ function checkPassword(input, salt, stored) {
 }
 
 // ---- Límite de intentos de login (guardado en la base de datos, sobrevive a reinicios) ----
-async function limited(key) {
+async function limited(key, max) {
   await q("DELETE FROM web_tries WHERE t < ?", [Date.now() - 15 * 60000]);
-  return Number((await q("SELECT COUNT(*) AS n FROM web_tries WHERE k = ?", [key]))[0].n) >= 6;
+  return Number((await q("SELECT COUNT(*) AS n FROM web_tries WHERE k = ?", [key]))[0].n) >= max;
 }
+// ---- Límite de peticiones por IP (en memoria) ----
+const buckets = new Map();
+const hit = (key, max, ms) => { const now = Date.now(); let b = buckets.get(key); if (!b || b.r < now) { b = { n: 0, r: now + ms }; buckets.set(key, b); } return ++b.n <= max; };
+setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (b.r < now) buckets.delete(k); }, 60000).unref();
+// ---- Protección anti-bots: Cloudflare Turnstile (opcional, se activa con TURNSTILE_SITEKEY y TURNSTILE_SECRET) ----
+async function captchaOk(req) {
+  if (!E.TURNSTILE_SECRET) return true;
+  const t = str(req.body.cf).slice(0, 2048);
+  if (!t) return false;
+  try {
+    const r = await (await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: new URLSearchParams({ secret: E.TURNSTILE_SECRET, response: t, remoteip: req.ip }), signal: AbortSignal.timeout(5000) })).json();
+    return !!r.success;
+  } catch { return false; }
+}
+const DUMMY_HASH = bcrypt.hashSync("sampcity-dummy", 10); // para que el tiempo de respuesta no delate si el usuario existe
 
 const app = express();
 // Express 4 no captura errores de funciones async: así un fallo de la base de datos no tumba el servidor
 ["get", "post", "put", "delete"].forEach((m) => { const o = app[m].bind(app); app[m] = (p, ...h) => (h.length ? o(p, ...h.map((f) => (typeof f === "function" && f.length < 4 ? (a, b, c) => Promise.resolve(f(a, b, c)).catch(c) : f))) : o(p)); });
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+// 18-19. HTTPS forzado + cabeceras de seguridad
+const CSP = ["default-src 'self'", "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com", "img-src 'self' data: https:", "connect-src 'self'", "frame-src https://challenges.cloudflare.com", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"].join("; ");
+app.use((req, res, next) => {
+  if (HTTPS && req.headers["x-forwarded-proto"] === "http") return res.redirect(301, BASE + req.originalUrl);
+  res.set({ "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin", "Content-Security-Policy": CSP, "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()", "Cross-Origin-Opener-Policy": "same-origin" });
+  if (HTTPS) res.set("Strict-Transport-Security", "max-age=31536000");
+  next();
+});
+// 17. Límite de la API por IP + peticiones que cambian datos: mismo origen y JSON (así otra web no puede lanzarlas)
+app.use("/api", (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  if (!hit("a|" + req.ip, 300, 60000) || (req.method !== "GET" && !hit("w|" + req.ip, 60, 60000))) return res.set("Retry-After", "60").status(429).json({ error: "Demasiadas peticiones. Espera un momento." });
+  if (req.method !== "GET") {
+    const o = req.headers.origin;
+    if (o && o !== ORIGIN && o !== `${req.protocol}://${req.get("host")}`) return res.status(403).json({ error: "Origen no permitido" });
+    if (!/^application\/json/i.test(req.headers["content-type"] || "")) return res.status(415).json({ error: "Formato no válido" });
+  }
+  next();
+});
 app.use((req, res, next) => (req.path === "/api/photos" ? next() : express.json({ limit: "20kb" })(req, res, next)));
-app.use((req, res, next) => { res.set({ "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin" }); next(); });
-// Las peticiones que cambian datos deben ser JSON (así un formulario de otra web no puede lanzarlas)
-app.use("/api", (req, res, next) => (req.method === "GET" || req.is("json") ? next() : res.status(415).json({ error: "Formato no válido" })));
 
 const me = async (req) => {
   const id = sessionId(req);
@@ -61,13 +96,15 @@ const me = async (req) => {
 
 // ---- Login ----
 app.post("/api/login", async (req, res) => {
-  const name = String(req.body.name || "").trim().slice(0, 24), pass = String(req.body.password || "").slice(0, 72).replace(/%/g, "#"); // el juego cambia % por # en todo lo que se escribe
-  const key = `${req.ip}|${name.toLowerCase()}`;
-  if (!name || !pass) return res.status(400).json({ error: "Escribe tu nombre y tu contraseña" });
-  if (await limited(key)) return res.status(429).json({ error: "Demasiados intentos. Espera 15 minutos." });
+  const name = str(req.body.name).trim().slice(0, 24), pass = str(req.body.password).slice(0, 72).replace(/%/g, "#"); // el juego cambia % por # en todo lo que se escribe
+  const key = `${req.ip}|${name.toLowerCase()}`, ipKey = `${req.ip}|*`;
+  if (!name || !pass || /[\u0000-\u001f]/.test(name)) return res.status(400).json({ error: "Escribe tu nombre y tu contraseña" });
+  if (!hit("l|" + req.ip, 20, 60000) || (await limited(key, 6)) || (await limited(ipKey, 30))) return res.status(429).json({ error: "Demasiados intentos. Espera 15 minutos." });
+  if (!(await captchaOk(req))) return res.status(400).json({ error: "Completa la verificación anti-robots", captcha: true });
   const r = (await q("SELECT id, salt, pass FROM player WHERE name = ?", [name]))[0];
-  if (!r || !r.pass || !checkPassword(pass, r.salt, r.pass)) {
-    await q("INSERT INTO web_tries (k, t) VALUES (?, ?)", [key, Date.now()]);
+  const good = r && r.pass ? checkPassword(pass, r.salt, r.pass) : (bcrypt.compareSync(pass, DUMMY_HASH), false);
+  if (!good) {
+    await q("INSERT INTO web_tries (k, t) VALUES (?, ?), (?, ?)", [key, Date.now(), ipKey, Date.now()]);
     return res.status(401).json({ error: "Nombre o contraseña incorrectos" });
   }
   await q("DELETE FROM web_tries WHERE k = ?", [key]);
@@ -90,7 +127,7 @@ app.get("/auth/discord", async (req, res) => {
   const u = await me(req);
   if (!u) return res.redirect("/?login=1");
   const state = crypto.randomBytes(16).toString("hex");
-  res.append("Set-Cookie", `dst=${state}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600${BASE.startsWith("https") ? "; Secure" : ""}`);
+  res.append("Set-Cookie", `dst=${state}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600${HTTPS ? "; Secure" : ""}`);
   const p = new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, redirect_uri: `${BASE}/auth/discord/callback`, response_type: "code", scope: "identify", state });
   res.redirect(`https://discord.com/oauth2/authorize?${p}`);
 });
@@ -98,7 +135,8 @@ app.get("/auth/discord/callback", async (req, res) => {
   try {
     const u = await me(req);
     const st = (req.headers.cookie || "").match(/(?:^|; )dst=([^;]+)/)?.[1];
-    if (!u || !st || st !== req.query.state || !req.query.code) return res.redirect("/?discord=error");
+    res.append("Set-Cookie", `dst=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0${HTTPS ? "; Secure" : ""}`); // el estado se usa una sola vez
+    if (!u || !st || typeof req.query.state !== "string" || st !== req.query.state || typeof req.query.code !== "string" || !req.query.code) return res.redirect("/?discord=error");
     const t = await (await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }) })).json();
     const d = await (await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` } })).json();
     if (!/^\d+$/.test(d.id || "")) return res.redirect("/?discord=error");
@@ -118,7 +156,7 @@ app.delete("/api/discord", async (req, res) => {
 // ---- Estado público (solo cifras, sin datos de cuentas) ----
 app.get("/api/info", async (req, res) => {
   const r = (await q("SELECT COUNT(*) AS total, COALESCE(SUM(connected), 0) AS online FROM player"))[0];
-  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "" });
+  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
 });
 
 // ---- Staff (nombre y rango, nada más) ----
@@ -133,22 +171,22 @@ app.get("/api/posts", async (req, res) => {
 });
 app.post("/api/posts", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
-  const { type, title, body } = req.body;
+  const type = str(req.body.type), title = str(req.body.title).trim(), body = str(req.body.body).trim();
   if (!TYPES.includes(type) || !title || !body) return res.status(400).json({ error: "Faltan datos" });
-  if (type === "photo" && !/^https:\/\/[^\s"'<>]{4,500}$/.test(String(body))) return res.status(400).json({ error: "El enlace de la foto debe empezar con https://" });
-  await q("INSERT INTO web_posts (type, title, body, author) VALUES (?, ?, ?, ?)", [type, String(title).slice(0, 120), String(body).slice(0, 4000), u.name]);
+  if (type === "photo" && !/^https:\/\/[^\s"'<>]{4,500}$/.test(body)) return res.status(400).json({ error: "El enlace de la foto debe empezar con https://" });
+  await q("INSERT INTO web_posts (type, title, body, author) VALUES (?, ?, ?, ?)", [type, title.slice(0, 120), body.slice(0, 4000), u.name]);
   res.json({ ok: true });
 });
 app.put("/api/posts/:id", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
-  const title = String(req.body.title || "").trim().slice(0, 120), body = String(req.body.body || "").slice(0, 4000);
-  if (!title || !body) return res.status(400).json({ error: "Faltan datos" });
-  await q("UPDATE web_posts SET title = ?, body = IF(type = 'photo', body, ?) WHERE id = ?", [title, body, Number(req.params.id) || 0]);
+  const title = str(req.body.title).trim().slice(0, 120), body = str(req.body.body).slice(0, 4000);
+  if (!title || !body || !pid(req.params.id)) return res.status(400).json({ error: "Faltan datos" });
+  await q("UPDATE web_posts SET title = ?, body = IF(type = 'photo', body, ?) WHERE id = ?", [title, body, pid(req.params.id)]);
   res.json({ ok: true });
 });
 app.delete("/api/posts/:id", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
-  const id = Number(req.params.id) || 0, p = (await q("SELECT body FROM web_posts WHERE id = ?", [id]))[0], im = /^\/img\/(\d+)$/.exec(p?.body || "");
+  const id = pid(req.params.id), p = (await q("SELECT body FROM web_posts WHERE id = ?", [id]))[0], im = /^\/img\/(\d+)$/.exec(p?.body || "");
   if (im) await q("DELETE FROM web_images WHERE id = ?", [im[1]]);
   await q("DELETE FROM web_likes WHERE post_id = ?", [id]);
   await q("DELETE FROM web_comments WHERE post_id = ?", [id]);
@@ -158,8 +196,8 @@ app.delete("/api/posts/:id", async (req, res) => {
 // Subida de fotos (solo staff): la imagen llega ya reducida desde el navegador, se guarda en la base de datos
 app.post("/api/photos", express.json({ limit: "1500kb" }), async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
-  const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body.data || "")), title = String(req.body.title || "").trim().slice(0, 120);
-  if (!m || !title) return res.status(400).json({ error: "Escribe un pie de foto y elige una imagen" });
+  const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(str(req.body.data)), title = str(req.body.title).trim().slice(0, 120);
+  if (!m || !title || m[2].length > 1250000) return res.status(400).json({ error: "Escribe un pie de foto y elige una imagen" });
   const buf = Buffer.from(m[2], "base64");
   const magic = (m[1] === "jpeg" && buf[0] === 0xff && buf[1] === 0xd8) || (m[1] === "png" && buf[0] === 0x89 && buf[1] === 0x50) || (m[1] === "webp" && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP");
   if (!magic || buf.length > 900 * 1024) return res.status(400).json({ error: "Imagen no válida o muy pesada (máx. 900 KB)" });
@@ -170,24 +208,24 @@ app.post("/api/photos", express.json({ limit: "1500kb" }), async (req, res) => {
 app.get("/img/:id(\\d+)", async (req, res) => {
   const r = (await q("SELECT mime, data FROM web_images WHERE id = ?", [req.params.id]))[0];
   if (!r) return res.status(404).end();
-  res.set({ "Content-Type": r.mime, "Cache-Control": "public, max-age=604800, immutable" }).send(r.data);
+  res.set({ "Content-Type": r.mime, "Cache-Control": "public, max-age=604800, immutable", "Content-Security-Policy": "default-src 'none'; sandbox", "Content-Disposition": "inline" }).send(r.data);
 });
 // Me gusta y comentarios (hay que haber iniciado sesión)
 app.post("/api/posts/:id/like", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
-  const id = Number(req.params.id) || 0;
+  const id = pid(req.params.id);
   if (!(await q("SELECT 1 FROM web_posts WHERE id = ?", [id])).length) return res.status(404).json({ error: "No existe" });
   const del = await q("DELETE FROM web_likes WHERE post_id = ? AND player_id = ?", [id, u.id]);
   if (!del.affectedRows) await q("INSERT IGNORE INTO web_likes (post_id, player_id) VALUES (?, ?)", [id, u.id]);
   res.json({ liked: !del.affectedRows, likes: Number((await q("SELECT COUNT(*) AS n FROM web_likes WHERE post_id = ?", [id]))[0].n) });
 });
 app.get("/api/posts/:id/comments", async (req, res) => {
-  const u = await me(req), rows = await q("SELECT id, player_id, author, body, created_at FROM web_comments WHERE post_id = ? ORDER BY id LIMIT 200", [Number(req.params.id) || 0]);
+  const u = await me(req), rows = await q("SELECT id, player_id, author, body, created_at FROM web_comments WHERE post_id = ? ORDER BY id LIMIT 200", [pid(req.params.id)]);
   res.json(rows.map((c) => ({ id: c.id, author: c.author, body: c.body, created_at: c.created_at, del: !!u && (String(u.id) === String(c.player_id) || u.admin_level >= MIN_POST) })));
 });
 app.post("/api/posts/:id/comments", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
-  const id = Number(req.params.id) || 0, body = String(req.body.body || "").trim().slice(0, 300);
+  const id = pid(req.params.id), body = str(req.body.body).trim().slice(0, 300);
   if (!body) return res.status(400).json({ error: "Escribe algo" });
   if (!(await q("SELECT 1 FROM web_posts WHERE id = ?", [id])).length) return res.status(404).json({ error: "No existe" });
   if (Number((await q("SELECT COUNT(*) AS n FROM web_comments WHERE player_id = ? AND created_at > NOW() - INTERVAL 1 MINUTE", [u.id]))[0].n) >= 5) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
@@ -196,12 +234,16 @@ app.post("/api/posts/:id/comments", async (req, res) => {
 });
 app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
-  await q("DELETE FROM web_comments WHERE id = ? AND post_id = ? AND (player_id = ? OR ? >= ?)", [Number(req.params.cid) || 0, Number(req.params.id) || 0, u.id, u.admin_level, MIN_POST]);
+  await q("DELETE FROM web_comments WHERE id = ? AND post_id = ? AND (player_id = ? OR ? >= ?)", [pid(req.params.cid), pid(req.params.id), u.id, u.admin_level, MIN_POST]);
   res.json({ ok: true });
 });
 
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h" }));
-app.use((err, req, res, next) => { console.log("[web]", err.message); res.status(500).json({ error: "Error del servidor" }); });
+app.use((err, req, res, next) => {
+  const st = err.status >= 400 && err.status < 500 ? err.status : 500; // JSON roto, cuerpo muy grande, etc. no son errores del servidor
+  if (st === 500) console.log("[web]", err.message);
+  res.status(st).json({ error: st === 500 ? "Error del servidor" : st === 413 ? "Contenido demasiado grande" : "Petición no válida" });
+});
 
 (async () => {
   // Tablas propias de la web (no se toca ninguna del juego)

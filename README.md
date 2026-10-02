@@ -19,3 +19,12 @@
 - Sección Reglas y botón Editar para el staff.
 - Los intentos de login se guardan en la base de datos (tabla `web_tries`).
 - Tablas nuevas que crea sola la web: `web_likes`, `web_comments`, `web_images`, `web_tries`.
+
+## Seguridad
+- Secretos solo en `.env` / variables de Render (`.gitignore` los excluye). Si alguna vez subiste un `.env` a Git, cambia esas claves: borrarlo del repo no basta.
+- Rotar `SESSION_SECRET` cierra todas las sesiones. El servidor no arranca con el valor de ejemplo.
+- Crea un usuario MySQL solo para la web: SELECT en `player` y `crews`; SELECT/INSERT/DELETE en `discord_links`; todos los permisos solo en las tablas `web_*`.
+- `MYSQL_SSL=1` cifra la conexión con la base de datos.
+- Turnstile (opcional): define `TURNSTILE_SITEKEY` y `TURNSTILE_SECRET` para pedir verificación anti-bots al iniciar sesión.
+- Login limitado por cuenta+IP (6) y por IP (30) cada 15 min; la API limita peticiones por IP.
+- Cabeceras: CSP, HSTS, X-Frame-Options, Permissions-Policy. En HTTPS se fuerza la redirección desde HTTP.
