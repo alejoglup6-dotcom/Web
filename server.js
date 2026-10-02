@@ -166,7 +166,7 @@ app.get("/api/staff", async (req, res) => res.json(await q(`SELECT name, admin_l
 // ---- Clasificación (solo nombre, skin y cifras públicas) ----
 app.get("/api/top", async (req, res) => {
   const by = { level: "level", time: "time_playing", rep: "rep" }[req.query.by] || "level";
-  res.json(await q(`SELECT name, level, rep, time_playing, ${SKIN_COL} AS skin FROM player ORDER BY ${by} DESC, name LIMIT 20`));
+  res.json(await q(`SELECT name, level, rep, time_playing, ${SKIN_COL} AS skin FROM player ORDER BY ${by} DESC, level DESC, time_playing DESC, name LIMIT 20`));
 });
 
 // ---- Noticias / actualizaciones / FAQ / reglas / fotos ----
