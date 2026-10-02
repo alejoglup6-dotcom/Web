@@ -163,7 +163,7 @@ app.get("/api/info", async (req, res) => {
 app.get("/api/staff", async (req, res) => res.json(await q("SELECT name, admin_level AS level, connected FROM player WHERE admin_level > 0 ORDER BY admin_level DESC, name LIMIT 60")));
 
 // ---- Noticias / actualizaciones / FAQ / reglas / fotos ----
-const TYPES = ["news", "update", "faq", "photo", "rules"];
+const TYPES = ["news", "update", "faq", "photo", "rules", "review"]; // review = testimonios (los publica el staff)
 const staffOnly = async (req, res) => { const u = await me(req); if (!u || u.admin_level < MIN_POST) { res.status(403).json({ error: "No tienes permiso" }); return null; } return u; };
 app.get("/api/posts", async (req, res) => {
   const type = TYPES.includes(req.query.type) ? req.query.type : null, uid = sessionId(req) || 0;
@@ -191,6 +191,25 @@ app.delete("/api/posts/:id", async (req, res) => {
   await q("DELETE FROM web_likes WHERE post_id = ?", [id]);
   await q("DELETE FROM web_comments WHERE post_id = ?", [id]);
   await q("DELETE FROM web_posts WHERE id = ?", [id]);
+  res.json({ ok: true });
+});
+// ---- Contacto: lo envía cualquiera, solo el staff lo lee ----
+app.post("/api/contact", async (req, res) => {
+  if (str(req.body.website)) return res.json({ ok: true }); // campo trampa para bots: un humano no lo ve ni lo llena
+  const name = str(req.body.name).trim().slice(0, 80), contact = str(req.body.contact).trim().slice(0, 80), body = str(req.body.message).trim().slice(0, 1000);
+  if (!name || body.length < 10) return res.status(400).json({ error: "Escribe tu nombre y un mensaje de al menos 10 letras" });
+  if (!hit("c|" + req.ip, 3, 3600000)) return res.status(429).json({ error: "Ya enviaste varios mensajes. Inténtalo más tarde." });
+  if (!(await captchaOk(req))) return res.status(400).json({ error: "Completa la verificación anti-robots", captcha: true });
+  await q("INSERT INTO web_contact (name, contact, body) VALUES (?, ?, ?)", [name, contact, body]);
+  res.json({ ok: true });
+});
+app.get("/api/contact", async (req, res) => {
+  if (!(await staffOnly(req, res))) return;
+  res.json(await q("SELECT id, name, contact, body, created_at FROM web_contact ORDER BY id DESC LIMIT 100"));
+});
+app.delete("/api/contact/:id", async (req, res) => {
+  if (!(await staffOnly(req, res))) return;
+  await q("DELETE FROM web_contact WHERE id = ?", [pid(req.params.id)]);
   res.json({ ok: true });
 });
 // Subida de fotos (solo staff): la imagen llega ya reducida desde el navegador, se guarda en la base de datos
@@ -238,7 +257,9 @@ app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h" }));
+app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h", setHeaders: (res, f) => { if (/[\\/]assets[\\/]/.test(f)) res.set("Cache-Control", "public, max-age=86400"); } }));
+// Página 404 propia (la API responde JSON)
+app.use((req, res) => (req.path.startsWith("/api/") ? res.status(404).json({ error: "No existe" }) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
 app.use((err, req, res, next) => {
   const st = err.status >= 400 && err.status < 500 ? err.status : 500; // JSON roto, cuerpo muy grande, etc. no son errores del servidor
   if (st === 500) console.log("[web]", err.message);
@@ -251,6 +272,7 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_likes (post_id INT NOT NULL, player_id INT NOT NULL, PRIMARY KEY (post_id, player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_comments (id INT AUTO_INCREMENT PRIMARY KEY, post_id INT NOT NULL, player_id INT NOT NULL, author VARCHAR(24) NOT NULL, body VARCHAR(300) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY p (post_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_images (id INT AUTO_INCREMENT PRIMARY KEY, mime VARCHAR(16) NOT NULL, data MEDIUMBLOB NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_contact (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(80) NOT NULL, contact VARCHAR(80) NOT NULL, body VARCHAR(1000) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_tries (k VARCHAR(80) NOT NULL, t BIGINT NOT NULL, KEY k (k)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
 })().catch((e) => { console.error("No pude conectar con la base de datos:", e.message); process.exit(1); });

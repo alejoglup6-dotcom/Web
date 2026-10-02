@@ -28,3 +28,9 @@
 - Turnstile (opcional): define `TURNSTILE_SITEKEY` y `TURNSTILE_SECRET` para pedir verificación anti-bots al iniciar sesión.
 - Login limitado por cuenta+IP (6) y por IP (30) cada 15 min; la API limita peticiones por IP.
 - Cabeceras: CSP, HSTS, X-Frame-Options, Permissions-Policy. En HTTPS se fuerza la redirección desde HTTP.
+
+## Interfaz
+- Tema oscuro/claro y español/inglés (botones en el pie de página; se recuerdan en el navegador). Las publicaciones no se traducen.
+- Nuevas secciones: Testimonios (los publica el staff, con su nombre y el texto real del jugador) y Contacto.
+- Contacto: guarda los mensajes en la tabla `web_contact` (se crea sola). Solo el staff los ve y los borra. Máx. 3 mensajes por hora por IP; Turnstile se aplica aquí también si está activo.
+- Página 404 propia: `public/404.html`.
