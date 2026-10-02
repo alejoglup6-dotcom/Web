@@ -34,3 +34,7 @@
 - Nuevas secciones: Testimonios (los publica el staff, con su nombre y el texto real del jugador) y Contacto.
 - Contacto: guarda los mensajes en la tabla `web_contact` (se crea sola). Solo el staff los ve y los borra. Máx. 3 mensajes por hora por IP; Turnstile se aplica aquí también si está activo.
 - Página 404 propia: `public/404.html`.
+
+## Avatares, staff por rangos y clasificación
+- `SKIN_COLUMN` (por defecto `skin`): columna de la tabla `player` con el id de skin. `SKIN_URL` (opcional): imagen de cada skin, con `{id}` (ej. `/assets/skins/{id}.png` si las alojas tú). Si la imagen falla, se muestra la inicial.
+- Staff agrupado por rango con avatar y "última vez"; nueva sección Clasificación (`/api/top`); noticias y fotos paginadas (12 por página).

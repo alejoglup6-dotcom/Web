@@ -13,6 +13,8 @@ const HTTPS = BASE.startsWith("https"), ORIGIN = new URL(BASE).origin;
 const str = (v) => (typeof v === "string" ? v : ""); // solo texto: objetos/arreglos en el JSON se ignoran
 const pid = (v) => { const n = Number(v); return Number.isSafeInteger(n) && n > 0 ? n : 0; }; // ids válidos (enteros positivos)
 const MIN_POST = Number(E.POST_MIN_LEVEL) || 4;
+const SKIN_COL = /^\w{1,40}$/.test(E.SKIN_COLUMN || "") ? E.SKIN_COLUMN : "skin"; // columna de `player` con el id de skin
+const SKIN_URL = E.SKIN_URL || "https://assets.open.mp/assets/images/skins/{id}.png"; // {id} se reemplaza por la skin
 const ADMIN_LEVELS = ["Ciudadano", "Ayudante", "Moderador", "Operador", "Administrador", "Desarrollador"];
 
 const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: 5, ssl: E.MYSQL_SSL === "1" ? { minVersion: "TLSv1.2", rejectUnauthorized: E.MYSQL_SSL_STRICT !== "0" } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
@@ -117,7 +119,7 @@ app.post("/api/logout", (req, res) => { clearSession(res); res.json({ ok: true }
 app.get("/api/me", async (req, res) => {
   const u = await me(req);
   if (!u) return res.json({ user: null });
-  const a = (await q(`SELECT p.name, p.reg_date, p.last_connection, p.time_playing, p.level, p.rep, p.connected, p.admin_level, p.vip, p.vip_expire_date, p.cash, p.bank_money, p.phone_number, p.wanted_level, p.arrests_count, p.kills_count, c.name AS crew FROM player p LEFT JOIN crews c ON c.id = p.crew WHERE p.id = ?`, [u.id]))[0];
+  const a = (await q(`SELECT p.name, p.${SKIN_COL} AS skin, p.reg_date, p.last_connection, p.time_playing, p.level, p.rep, p.connected, p.admin_level, p.vip, p.vip_expire_date, p.cash, p.bank_money, p.phone_number, p.wanted_level, p.arrests_count, p.kills_count, c.name AS crew FROM player p LEFT JOIN crews c ON c.id = p.crew WHERE p.id = ?`, [u.id]))[0];
   const d = (await q("SELECT discord_id, linked_at FROM discord_links WHERE player_id = ?", [u.id]))[0];
   res.json({ user: { ...a, rango: ADMIN_LEVELS[a.admin_level] || "Ciudadano", canPost: a.admin_level >= MIN_POST, discord: d || null } });
 });
@@ -156,18 +158,24 @@ app.delete("/api/discord", async (req, res) => {
 // ---- Estado público (solo cifras, sin datos de cuentas) ----
 app.get("/api/info", async (req, res) => {
   const r = (await q("SELECT COUNT(*) AS total, COALESCE(SUM(connected), 0) AS online FROM player"))[0];
-  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
+  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", skinUrl: SKIN_URL, turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
 });
 
 // ---- Staff (nombre y rango, nada más) ----
-app.get("/api/staff", async (req, res) => res.json(await q("SELECT name, admin_level AS level, connected FROM player WHERE admin_level > 0 ORDER BY admin_level DESC, name LIMIT 60")));
+app.get("/api/staff", async (req, res) => res.json(await q(`SELECT name, admin_level AS level, connected, last_connection, ${SKIN_COL} AS skin FROM player WHERE admin_level > 0 ORDER BY admin_level DESC, name LIMIT 100`)));
+// ---- Clasificación (solo nombre, skin y cifras públicas) ----
+app.get("/api/top", async (req, res) => {
+  const by = { level: "level", time: "time_playing", rep: "rep" }[req.query.by] || "level";
+  res.json(await q(`SELECT name, level, rep, time_playing, ${SKIN_COL} AS skin FROM player ORDER BY ${by} DESC, name LIMIT 20`));
+});
 
 // ---- Noticias / actualizaciones / FAQ / reglas / fotos ----
 const TYPES = ["news", "update", "faq", "photo", "rules", "review"]; // review = testimonios (los publica el staff)
 const staffOnly = async (req, res) => { const u = await me(req); if (!u || u.admin_level < MIN_POST) { res.status(403).json({ error: "No tienes permiso" }); return null; } return u; };
 app.get("/api/posts", async (req, res) => {
   const type = TYPES.includes(req.query.type) ? req.query.type : null, uid = sessionId(req) || 0;
-  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${type ? "WHERE p.type = ?" : ""} ORDER BY p.id DESC LIMIT 50`, type ? [uid, type] : [uid]));
+  const paged = req.query.page !== undefined, per = paged ? 12 : 50, pg = Math.min(1000, Math.max(0, Number(req.query.page) || 0)); // con ?page= devuelve 12 (+1 para saber si hay siguiente)
+  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${type ? "WHERE p.type = ?" : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [...(type ? [uid, type] : [uid]), paged ? per + 1 : per, pg * per]));
 });
 app.post("/api/posts", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
