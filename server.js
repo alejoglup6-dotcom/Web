@@ -257,6 +257,12 @@ app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
+const fs = require("fs");
+const INDEX = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8").replace(/\{\{BASE\}\}/g, BASE);
+app.get(["/", "/index.html"], (req, res) => res.type("html").set("Cache-Control", "public, max-age=300").send(INDEX));
+app.get("/robots.txt", (req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\n\nSitemap: ${BASE}/sitemap.xml\n`));
+app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${BASE}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>\n`));
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h", setHeaders: (res, f) => { if (/[\\/]assets[\\/]/.test(f)) res.set("Cache-Control", "public, max-age=86400"); } }));
 // Página 404 propia (la API responde JSON)
 app.use((req, res) => (req.path.startsWith("/api/") ? res.status(404).json({ error: "No existe" }) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
