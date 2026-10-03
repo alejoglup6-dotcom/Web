@@ -74,9 +74,17 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - Avisan de: **me gusta** y **comentarios** en tus publicaciones/historias, **también comentó** (alguien comentó donde tú ya habías comentado), **menciones** `@Nombre_Apellido` en publicaciones y comentarios (al escribir `@` + 2 letras sale una lista de jugadores), **etiquetas** en publicaciones, **noticias y actualizaciones nuevas** del staff, **Discord vinculado** y, solo para el staff, **mensajes nuevos en Contacto**.
 - En la lista: filtros Todas / No leídas, "Marcar todo como leído", menú ••• por aviso (marcar como leída / eliminar) y "Ver anteriores". Al tocar un aviso se marca como leído y te lleva a la publicación (si es un comentario se abre con los comentarios desplegados).
 - Tabla nueva (se crea sola): `web_notifs`. Los avisos se borran con su publicación, al quitar el me gusta y a los 45 días. `NOTIF_BROADCAST_MAX` (opcional, por defecto 3000) limita a cuántos jugadores se avisa de una noticia/actualización.
-- **Solicitudes de amistad (por agregar):** ya están soportados los tipos `friend_req` y `friend_acc`. Cuando crees el sistema de amigos solo llama, en `server.js`:
+- **Solicitudes de amistad:** ya implementadas (ver «Amigos»); usan los tipos `friend_req` y `friend_acc`. Cuando crees el sistema de amigos solo llama, en `server.js`:
   - al enviar la solicitud: `await notify(idDestino, u, "friend_req");`
   - al aceptarla: `await notify(idQuienLaEnvió, u, "friend_acc");`
   
   (`u` es el jugador que actúa, el que devuelve `me(req)`). Al tocar el aviso se abre el perfil de esa persona; si luego quieres botones Confirmar/Eliminar dentro del aviso, se añaden en `ntRow()` de `notificaciones.js`.
 - Para otro tipo de aviso: llama `notify(destino, actor, "tipo", idPublicación, "texto corto")`, y agrega el texto y el ícono del tipo en `NTX` y `NIC` de `notificaciones.js` (y el color en `.ty[data-ty=...]` del CSS).
+
+## Amigos
+- Tabla nueva (se crea sola): `web_friends` (`a` envía, `b` recibe; `status` 0 = pendiente, 1 = amigos).
+- Página `/amigos` (`public/amigos.html` + `public/assets/js/pages/amigos.js`): buscador, solicitudes recibidas (Confirmar/Eliminar), «Personas que quizás conozcas» (primero con amigos en común, luego los más activos) y mis amigos.
+- Perfil `/u/Nombre`: botón Agregar a amigos / Cancelar solicitud / Confirmar-Eliminar / Amigos, contador y vista de amigos. Las solicitudes también se responden desde `/notificaciones`.
+- El feed (`/feed` e inicio) y la franja de historias solo muestran publicaciones de tus amigos y las tuyas (`/api/posts?type=feed`, `scope=friends`). Sin amigos aparece un aviso con botón hacia `/amigos`. Noticias y actualizaciones siguen en sus páginas.
+- API: `POST /api/friends/request`, `POST /api/friends/accept`, `DELETE /api/friends/:name`, `GET /api/friends`, `/api/friends/requests`, `/api/friends/suggestions`, `/api/friends/search?q=`.
+- Permisos MySQL: la web necesita SELECT/INSERT/UPDATE/DELETE en `web_friends`.
