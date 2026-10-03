@@ -151,7 +151,7 @@ body.fb-home .lay{margin-top:0}
 .fbs .c1 i{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:2.4rem;height:2.4rem;border-radius:50%;border:3px solid var(--card);background:var(--rojo);color:#fff;display:grid;place-items:center;font:700 1.5rem/1 Poppins,sans-serif}
 .fbs .c1 b{color:var(--t);text-align:center;text-shadow:none;bottom:.55rem}
 .fbp{background:var(--card);border-bottom:.45rem solid var(--bg);padding-top:.8rem}
-.fbh{display:flex;gap:.7rem;align-items:center;padding:0 .8rem}.fbh>div{flex:1;min-width:0}
+.fbh{display:flex;gap:.7rem;align-items:center;padding:0 .8rem}.fbh>div:not(.av){flex:1;min-width:0}
 .fbo{border:0;background:none;color:var(--m);letter-spacing:.1em;padding:.4rem .6rem}
 .fbp h3{font-family:"Russo One";font-weight:400;color:var(--rosa);font-size:1.1rem;padding:.6rem .8rem 0}
 .fbp>p{white-space:pre-wrap;overflow-wrap:anywhere;padding:.5rem .8rem .8rem}
@@ -160,8 +160,8 @@ body.fb-home .lay{margin-top:0}
 .fbp>div[id^=c]{padding:0 .8rem .6rem}.fbe{padding:2rem 1rem;text-align:center}
 .fbt{display:none}
 @media(max-width:719px){
- body.fb-home{--nav:3.6rem}body.fb-home #auth{display:none}body.fb-home .lay{padding:0}
- body.fb-home .fbt{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;inset:auto 0 0;z-index:6;background:var(--tabbg);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
+ body.has-nav{--nav:3.6rem}body.fb-home #auth{display:none}body.fb-home .lay{padding:0}
+ body.has-nav .fbt{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;inset:auto 0 0;z-index:6;background:var(--tabbg);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
  .fbt a{display:grid;place-items:center;height:var(--nav);border-top:3px solid transparent}.fbt a.on{border-top-color:var(--rojo)}
  .fbt .ic{width:1.7rem;height:1.7rem}.fbt .av{width:1.9rem;height:1.9rem}}
 @media(min-width:720px){.fbc2,.fbs,.fbp{border-radius:.8rem;border-bottom-width:0;margin-bottom:.8rem}body.fb-home .lay{margin-top:1rem}}
