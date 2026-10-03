@@ -111,7 +111,7 @@ async function notify(to, actor, type, postId = null, body = "") {
     if (ONCE.has(type) && (await q("SELECT 1 FROM web_notifs WHERE player_id = ? AND actor_id = ? AND type = ? AND post_id <=> ? LIMIT 1", [to, actor.id, type, postId])).length) return;
     if (UNREAD_ONCE.has(type) && (await q("SELECT 1 FROM web_notifs WHERE player_id = ? AND type = ? AND post_id <=> ? AND seen = 0 LIMIT 1", [to, type, postId])).length) return;
     await q("INSERT INTO web_notifs (player_id, actor_id, type, post_id, body) VALUES (?, ?, ?, ?, ?)", [to, actor.id, type, postId, String(body).replace(/\s+/g, " ").trim().slice(0, 140)]);
-  } catch (e) { console.log("[notif]", e.message); }
+  } catch (e) { console.log("[notif] error al crear el aviso:", e.message); }
 }
 const unreadCount = async (uid) => Number((await q(`SELECT COUNT(*) AS n ${NJ} AND n.seen = 0`, [uid]))[0].n);
 async function mentioned(text, selfId) { // jugadores citados con @Nombre_Apellido que existen
@@ -119,7 +119,13 @@ async function mentioned(text, selfId) { // jugadores citados con @Nombre_Apelli
   if (!names.length) return [];
   return (await q("SELECT id, name FROM player WHERE name IN (?)", [names])).filter((r) => String(r.id) !== String(selfId));
 }
-const postOwner = async (id) => (await q("SELECT p.type, pl.id AS aid FROM web_posts p LEFT JOIN player pl ON pl.name = p.author WHERE p.id = ?", [id]))[0];
+const postOwner = async (id) => { // dueño de una publicación (sin JOIN entre tablas: evita problemas de collation)
+  const p = (await q("SELECT type, author FROM web_posts WHERE id = ?", [id]))[0];
+  if (!p) return null;
+  const a = (await q("SELECT id FROM player WHERE name = ? LIMIT 1", [p.author]))[0];
+  if (!a) console.log("[notif] no encontré al jugador autor de la publicación", id, JSON.stringify(p.author));
+  return { type: p.type, aid: a ? a.id : null };
+};
 
 // ---- Login ----
 app.post("/api/login", async (req, res) => {
