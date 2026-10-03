@@ -215,7 +215,7 @@ body.nosc{overflow:hidden}
 @media(max-width:719px){body.has-nav .fbt{grid-template-columns:repeat(7,1fr)}.nbell{display:none}}
 .nbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:-.2rem 0 .9rem}.nbar .lk{margin-left:auto;font-size:.82rem}
 .nl{padding:.3rem 0;overflow:hidden}.nl h4{padding:.7rem 1rem .3rem;font-size:1.05rem}
-.nt{display:flex;align-items:center;position:relative}.nt+.nt{border-top:1px solid color-mix(in srgb,var(--b) 60%,transparent)}
+.nt{display:flex;flex-wrap:wrap;align-items:center;position:relative}.nt+.nt{border-top:1px solid color-mix(in srgb,var(--b) 60%,transparent)}
 .nt.un{background:color-mix(in srgb,var(--rojo) 11%,transparent)}
 .ntl{flex:1;min-width:0;display:flex;gap:.8rem;align-items:center;padding:.8rem 0 .8rem 1rem}
 .nta{position:relative;flex:none}.nta .av{width:3.2rem;height:3.2rem;object-fit:cover}
@@ -231,3 +231,18 @@ body.nosc{overflow:hidden}
 .men{color:var(--rosa);font-weight:600}.men:hover{text-decoration:underline}
 .mnl{position:fixed;z-index:60;display:grid;max-height:14rem;overflow:auto;background:var(--card);border:1px solid var(--rosa);border-radius:.8rem;box-shadow:0 .5rem 1.5rem rgba(0,0,0,.45)}
 .mnl button{display:flex;align-items:center;gap:.6rem;border:0;background:none;padding:.5rem .8rem;text-align:left;font-weight:600;color:var(--t)}.mnl button:hover{background:var(--hov)}
+
+/* Amigos: tarjetas, estado vacío del feed y aviso de solicitudes */
+.fgrid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,10.5rem),1fr));margin-bottom:1.2rem}
+.fcard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.25rem;background:var(--card);border:1px solid var(--b);border-radius:1rem;padding:.9rem .6rem}
+.fca{display:flex;flex-direction:column;align-items:center;gap:.4rem;max-width:100%}.fca b{overflow-wrap:anywhere;line-height:1.25}
+.fcard small{min-height:1.4em;font-size:.78rem}
+.fcard .fra{margin-top:.3rem;justify-content:center;width:100%;flex-direction:column}.fcard .fra .btn{width:100%}
+.fh{font-family:"Russo One";font-weight:400;color:var(--rosa);font-size:1.1rem;margin:.4rem 0 .6rem;display:flex;align-items:center;gap:.5rem}
+.fra{display:flex;gap:.5rem;flex-wrap:wrap}.fra .btn[disabled]{opacity:.5;pointer-events:none}
+.fav{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(4.8rem,1fr))}.fav a{display:flex;flex-direction:column;align-items:center;gap:.25rem;text-align:center;font-size:.78rem;line-height:1.2;overflow-wrap:anywhere}
+.fre{text-align:center;padding:1.6rem 1rem;display:grid;justify-items:center;gap:.5rem}.fre h3{margin:0}.fre p{max-width:28rem}.fre .btn{margin-top:.4rem}
+.fri{width:3.4rem;height:3.4rem;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--rojo) 16%,transparent)}.fri .ic{width:1.7rem;height:1.7rem}
+.frb{display:flex;justify-content:space-between;align-items:center;gap:1rem;font-weight:600;border-color:var(--rojo)}.frb b{background:var(--rojo);color:#fff;border-radius:99px;padding:.05rem .65rem}
+.nt .fra{flex:0 0 100%;padding:0 1rem .8rem 4.3rem}
+.fbw .fre,.fbw .frb{margin:.6rem;border-radius:.8rem}
