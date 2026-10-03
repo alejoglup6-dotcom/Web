@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Feed | SampCity RolePlay</title>
+<meta name="description" content="Publicaciones de la comunidad de SampCity: jugadores, noticias y actualizaciones.">
+<link rel="canonical" href="{{BASE}}/feed"><meta property="og:type" content="website"><meta property="og:title" content="Feed | SampCity RolePlay"><meta property="og:description" content="Publicaciones de la comunidad de SampCity: jugadores, noticias y actualizaciones."><meta property="og:url" content="{{BASE}}/feed"><meta property="og:image" content="{{BASE}}/assets/logo.png">
+<meta name="theme-color" content="#0e0a0c"><link rel="icon" href="/assets/favicon.png"><link rel="apple-touch-icon" href="/assets/icon-192.png"><link rel="manifest" href="/manifest.webmanifest">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")==="light"?"light":"dark"}catch{document.documentElement.dataset.theme="dark"}document.documentElement.classList.add("js")</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Russo+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css?v=1">
+</head><body data-v="feed">
+<a class="skip" href="#main">Saltar al contenido</a><div class="off" id="off" role="status" hidden></div>
+<header class="top"><a href="/" aria-label="Inicio"><img src="/assets/logo.png" alt="SampCity"></a><span class="sp"></span><span class="dsk"><button class="btn s js-theme" type="button"><span class="e"></span><span class="lbl"></span></button><button class="btn s js-lang" type="button"><span class="e"></span><span class="lbl"></span></button></span><span id="auth"></span><button class="btn s hb" id="hb" type="button" aria-label="Menú" onclick="document.getElementById('dr').classList.add('on')"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-menu_hamburguesa"/></svg></button></header>
+<div class="lay">
+ <nav class="card menu" id="menu" style="padding:.5rem" aria-label="Secciones"></nav>
+ <main id="main" tabindex="-1"></main>
+</div>
+<footer class="ft" id="ft">© SampCity RolePlay · Comunidad no oficial de Rockstar Games / SA-MP</footer>
+<button class="up" id="up" type="button">↑</button><div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:1rem;text-align:center">Activa JavaScript para usar esta página.</p></noscript>
+<div class="dr" id="dr" onclick="if(event.target===this)cd()"><aside role="dialog" aria-label="Menú"><div class="drh"><img src="/assets/logo.png" alt="SampCity"><button class="btn s" type="button" onclick="cd()" aria-label="Cerrar"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-cerrar"/></svg></button></div><div id="drn"></div><div id="drauth"></div></aside></div>
+<div class="modal" id="mod" role="dialog" aria-modal="true"><div class="card" id="modc"></div></div>
+<script src="/assets/js/sprite.js?v=1"></script>
+<script src="/assets/js/core.js?v=1"></script>
+<script src="/assets/js/pages/feed.js?v=1"></script>
+</body></html>
