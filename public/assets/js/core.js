@@ -124,7 +124,8 @@ async function show(){const my=++tok,m=$("#main");m.setAttribute("aria-busy","tr
 function mountPage(fn){RENDER=fn;boot()}
 async function boot(){const q=new URLSearchParams(location.search),h=location.hash.slice(1);
  if(view==="news"&&R[h]&&R[h]!==location.pathname)return location.replace(R[h]); // enlaces viejos tipo /#fotos
- document.documentElement.lang=L;nav();ui();if(!navigator.onLine)$("#off").hidden=false;await init();show();
- api("/info").then(r=>{if(r.ok){INFO=r.d;if(view==="news")show()}});
+ document.documentElement.lang=L;nav();ui();if(!navigator.onLine)$("#off").hidden=false;
+ await Promise.all([init(),info()]); // /info trae la URL de las skins: debe estar lista ANTES de dibujar la página
+ show();
  if(q.get("login")&&!U)login()}
 
