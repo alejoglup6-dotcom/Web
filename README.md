@@ -67,7 +67,7 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - Quien tenga sesión publica desde "¿Qué estás pensando?" (hoja a pantalla completa): texto, hasta 4 fotos y etiquetas de jugadores (`/api/users/search`). Las fotos se reducen en el navegador.
 - Historias: botón "Crear historia" en la franja del inicio. Una foto o un video MP4/MOV/WebM de **máx. 15 s** (el servidor lee la duración del archivo) y de `VIDEO_MAX_MB` MB (por defecto 25). Duran 24 h: al vencer se borran solas (cada hora) junto con sus medios, me gusta y comentarios. Se ven en el visor (toque derecho/izquierdo, mantener para pausar), con me gusta y comentarios, y aparecen en el feed con miniatura mientras estén activas.
 - Medios nuevos (tablas `web_media`, `web_media_chunks`, `web_post_media`, `web_tags`; se crean solas): se guardan en la base de datos en trozos de 256 KB y se sirven en `/media/:id` con soporte de Range.
-- Barra inferior: se quitaron Feed y Cámara; se agregaron Videos y Marketplace (por ahora muestran "Próximamente"). Cuando existan esas páginas, quita el atributo `data-soon` en `fbNav()` (`core.js`) y registra las rutas en `ROUTES`.
+- Barra inferior del celular (`fbNav()` en `core.js`), como en Facebook: **Feed · Reels · Solicitudes de amistad · Marketplace · Notificaciones · Perfil**. El ícono de solicitudes muestra cuántas tienes pendientes.
 
 ## Notificaciones
 - Nueva página `/notificaciones` (`public/notificaciones.html` + `public/assets/js/pages/notificaciones.js`) y campana con contador en la **barra inferior** del celular, en la cabecera (PC) y en el menú lateral/hamburguesa. El contador se actualiza solo cada 45 s.
@@ -88,3 +88,14 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - El feed (`/feed` e inicio) y la franja de historias solo muestran publicaciones de tus amigos y las tuyas (`/api/posts?type=feed`, `scope=friends`). Sin amigos aparece un aviso con botón hacia `/amigos`. Noticias y actualizaciones siguen en sus páginas.
 - API: `POST /api/friends/request`, `POST /api/friends/accept`, `DELETE /api/friends/:name`, `GET /api/friends`, `/api/friends/requests`, `/api/friends/suggestions`, `/api/friends/search?q=`.
 - Permisos MySQL: la web necesita SELECT/INSERT/UPDATE/DELETE en `web_friends`.
+
+## Reels, Marketplace y diseño tipo Facebook
+- **Reels** (`/reels`: `public/reels.html` + `public/assets/js/pages/reels.js`): videos que sube la comunidad, a pantalla completa. Se desliza hacia arriba para ver el siguiente (se cargan solos de 8 en 8). A la derecha: me gusta, comentarios (hoja desde abajo), compartir, guardar y ••• (guardar, copiar enlace, ver perfil, eliminar). Un toque pausa (el primero activa el sonido), dos toques dan me gusta.
+  - Se suben desde el botón ＋ de Reels o «Crear reel» del perfil: MP4/MOV/WebM de hasta `REEL_MAX_SECS` segundos (por defecto 90) y `REEL_MAX_MB` MB (por defecto 60), con barra de progreso. El servidor comprueba la duración leyendo el archivo.
+  - Enlaces: `/reels?r=ID` abre ese reel primero (también `/p/ID`), `?u=Nombre` solo los de ese jugador, `?saved=1` tus guardados, `&c=1` abre los comentarios.
+  - Los videos de reels se guardan como `kind = 'rel'` en `web_media` (no se pueden usar como historia de 15 s).
+  - API: `GET /api/reels`, `POST /api/reels`, `POST /api/posts/:id/save`. Tabla nueva (se crea sola): `web_saved`. Permisos MySQL: SELECT/INSERT/DELETE en `web_saved`.
+- **Marketplace** (`/marketplace`): por ahora muestra «Próximamente»; se conectará con el servidor de SA-MP cuando la función esté lista en el gamemode.
+- **Solicitudes** (`/amigos`): filas como Facebook (foto grande, amigos en común con sus caras, «hace 16 sem», Confirmar/Eliminar), «Ver todas», pestañas Sugerencias / Tus amigos y buscador (lupa).
+- **Notificaciones**: secciones Nuevas (sin leer) / Hoy / Anteriores; «Marcar todo como leído» y «Ver solo no leídas» están en el botón •••. Los avisos de reels abren el reel.
+- **Perfil** (`/perfil` y `/u/Nombre`, función `perfilFB()` en `core.js`): portada, foto redonda, rango, amigos · publicaciones · reels, botones (Agregar a historia / Crear reel, o Agregar a amigos) y pestañas Todo · Reels · Fotos · Más (Amigos, Guardados). La sección **Resumen** muestra los datos de la cuenta: en tu perfil nivel, reputación, tiempo jugado, efectivo, banco, facción, teléfono, arrestos, registro, última conexión y Discord; en el de otros solo los datos públicos.

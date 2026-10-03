@@ -1,0 +1,9 @@
+// Página: Marketplace (/marketplace) · por ahora «Próximamente»: se conectará con el servidor de SA-MP (compra y venta entre jugadores)
+Object.assign(EN,{"Vender":"Sell","Para ti":"For you","Categorías":"Categories","Vehículos":"Vehicles","Propiedades":"Properties","Negocios":"Businesses","Objetos":"Items","Próximamente":"Coming soon","Muy pronto podrás comprar y vender vehículos, casas, negocios y objetos del servidor desde aquí.":"Very soon you'll be able to buy and sell vehicles, houses, businesses and server items from here.","Estamos ajustando esta función dentro del servidor de SA-MP. Te avisaremos en Noticias cuando esté lista.":"We're adjusting this feature inside the SA-MP server. We'll let you know in News when it's ready.","Ver noticias":"See news"});
+function pg_market(){
+ const cats=[["jugar","Vehículos"],["inicio","Propiedades"],["marketplace","Negocios"],["galeria","Objetos"]];
+ return `<div class="fbw2"><div class="fbhd"><h2>${t("Marketplace")}</h2><button class="fbib" type="button" data-soon aria-label="${t("Buscar")}">${ic("buscar")}</button></div>
+ <div class="fpl"><button type="button" data-soon>${ic("mas")} ${t("Vender")}</button><button type="button" class="on" data-soon>${t("Para ti")}</button><button type="button" data-soon>${t("Categorías")}</button></div>
+ <section class="mks">${ic("marketplace")}<span class="pill">${t("Próximamente")}</span><h3>${t("Marketplace")}</h3><p>${t("Muy pronto podrás comprar y vender vehículos, casas, negocios y objetos del servidor desde aquí.")}</p><p class="m">${t("Estamos ajustando esta función dentro del servidor de SA-MP. Te avisaremos en Noticias cuando esté lista.")}</p><a class="btn" href="/noticias">${ic("noticias")} ${t("Ver noticias")}</a></section>
+ <div class="mkg">${cats.map(c=>`<button type="button" data-soon><span>${ic(c[0])}</span><b>${t(c[1])}</b><small>${t("Próximamente")}</small></button>`).join("")}</div></div>`}
+mountPage(pg_market);
