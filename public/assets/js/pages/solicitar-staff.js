@@ -1,0 +1,4 @@
+// Página: Solicitar ser Staff (/solicitar-staff)
+function pg_solicitar(){return `<h2 class="ttl">${t("Solicitar ser Staff")}</h2><div class="card"><h3 style="font-size:1.5rem">${t("No hay puestos abiertos")}</h3><p class="m">${t("Actualmente no hay puestos vacantes")}</p><p class="m" style="margin-top:.7rem">${t("Vuelva más tarde para comprobar si tenemos algún puesto vacante. Gracias por su interés.")}</p></div><div class="card"><h3 style="color:var(--rosa)">${t("Aplicar para SampCity staff")}</h3><p class="m">${t("Selecciona un puesto para comenzar")}</p><p class="m" style="margin-top:.7rem">${t("Aquí en SampCity abrimos de vez en cuando las solicitudes de personal. A veces encontrarás esta página vacía, otras veces puede estar llena de puestos, si alguna vez encuentras un puesto en el que crees que encajarías perfectamente, no dudes en solicitarlo.")}</p></div>`}
+
+mountPage(()=>pg_solicitar());
