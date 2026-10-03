@@ -209,7 +209,7 @@ body.nosc{overflow:hidden}
 
 /* Notificaciones: insignia, lista, menciones */
 .nb{display:inline-block;min-width:1.15rem;height:1.15rem;padding:0 .3rem;border-radius:99px;background:var(--rojo);color:#fff;font:700 .68rem/1.15rem Poppins,system-ui,sans-serif;font-style:normal;text-align:center}.nb[hidden]{display:none}
-.fbt a{position:relative}.fbt .nb{position:absolute;top:.3rem;left:calc(50% + .2rem);box-shadow:0 0 0 2px var(--tabbg)}
+.fbt a{position:relative}.fbt .nb{position:absolute;top:.5rem;left:calc(50% + .3rem);z-index:1;min-width:1.2rem;height:1.2rem;line-height:1.2rem;font-size:.7rem;box-shadow:0 0 0 2px var(--tabbg);pointer-events:none}
 .nbell{position:relative}.nbell .nb{position:absolute;top:-.4rem;right:-.35rem;box-shadow:0 0 0 2px var(--card)}
 .menu a .nb{margin-left:auto;align-self:center}.dr a .nb{margin-left:.6rem;align-self:center}
 @media(max-width:719px){body.has-nav .fbt{grid-template-columns:repeat(7,1fr)}.nbell{display:none}}
