@@ -62,3 +62,9 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - Para editar una página toca solo su `.html` y su `.js`. Si cambias CSS/JS, sube el `?v=1` de los `<link>`/`<script>` para evitar caché.
 - Para crear una página nueva: copia un `.html`, cambia `data-v`, título y script; agrégala a `NAV` y `R` en `core.js` y a `ROUTES` en `server.js`.
 - Los enlaces viejos tipo `/#fotos` redirigen solos a `/fotos`. Discord vuelve a `/perfil?discord=...`.
+
+## Publicaciones con fotos, etiquetas e historias
+- Quien tenga sesión publica desde "¿Qué estás pensando?" (hoja a pantalla completa): texto, hasta 4 fotos y etiquetas de jugadores (`/api/users/search`). Las fotos se reducen en el navegador.
+- Historias: botón "Crear historia" en la franja del inicio. Una foto o un video MP4/MOV/WebM de **máx. 15 s** (el servidor lee la duración del archivo) y de `VIDEO_MAX_MB` MB (por defecto 25). Duran 24 h: al vencer se borran solas (cada hora) junto con sus medios, me gusta y comentarios. Se ven en el visor (toque derecho/izquierdo, mantener para pausar), con me gusta y comentarios, y aparecen en el feed con miniatura mientras estén activas.
+- Medios nuevos (tablas `web_media`, `web_media_chunks`, `web_post_media`, `web_tags`; se crean solas): se guardan en la base de datos en trozos de 256 KB y se sirven en `/media/:id` con soporte de Range.
+- Barra inferior: se quitaron Feed y Cámara; se agregaron Videos y Marketplace (por ahora muestran "Próximamente"). Cuando existan esas páginas, quita el atributo `data-soon` en `fbNav()` (`core.js`) y registra las rutas en `ROUTES`.

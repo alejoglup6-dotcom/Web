@@ -15,6 +15,7 @@ const pid = (v) => { const n = Number(v); return Number.isSafeInteger(n) && n > 
 const MIN_POST = Number(E.POST_MIN_LEVEL) || 4;
 const SKIN_COL = /^\w{1,40}$/.test(E.SKIN_COLUMN || "") ? E.SKIN_COLUMN : "skin"; // columna de `player` con el id de skin
 const SKIN_URL = E.SKIN_URL || "https://assets.open.mp/assets/images/skins/{id}.png"; // {id} se reemplaza por la skin
+const CH = 256 * 1024, IMG_MAX = 1200 * 1024, VID_MAX = (Number(E.VIDEO_MAX_MB) || 25) * 1048576, VID_SECS = 15.5; // medios en trozos de 256 KB (evita el límite de paquete de MySQL)
 const ADMIN_LEVELS = ["Ciudadano", "Ayudante", "Moderador", "Operador", "Administrador", "Desarrollador"];
 
 const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: 5, ssl: E.MYSQL_SSL === "1" ? { minVersion: "TLSv1.2", rejectUnauthorized: E.MYSQL_SSL_STRICT !== "0" } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
@@ -69,7 +70,7 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 // 18-19. HTTPS forzado + cabeceras de seguridad
-const CSP = ["default-src 'self'", "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com", "img-src 'self' data: https:", "connect-src 'self'", "frame-src https://challenges.cloudflare.com", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"].join("; ");
+const CSP = ["default-src 'self'", "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com", "img-src 'self' data: blob: https:", "media-src 'self' blob:", "connect-src 'self'", "frame-src https://challenges.cloudflare.com", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"].join("; ");
 app.use((req, res, next) => {
   if (HTTPS && req.headers["x-forwarded-proto"] === "http") return res.redirect(301, BASE + req.originalUrl);
   res.set({ "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin", "Content-Security-Policy": CSP, "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()", "Cross-Origin-Opener-Policy": "same-origin" });
@@ -83,7 +84,7 @@ app.use("/api", (req, res, next) => {
   if (req.method !== "GET") {
     const o = req.headers.origin;
     if (o && o !== ORIGIN && o !== `${req.protocol}://${req.get("host")}`) return res.status(403).json({ error: "Origen no permitido" });
-    if (!/^application\/json/i.test(req.headers["content-type"] || "")) return res.status(415).json({ error: "Formato no válido" });
+    if (req.path !== "/media" && !/^application\/json/i.test(req.headers["content-type"] || "")) return res.status(415).json({ error: "Formato no válido" });
   }
   next();
 });
@@ -158,7 +159,7 @@ app.delete("/api/discord", async (req, res) => {
 // ---- Estado público (solo cifras, sin datos de cuentas) ----
 app.get("/api/info", async (req, res) => {
   const r = (await q("SELECT COUNT(*) AS total, COALESCE(SUM(connected), 0) AS online FROM player"))[0];
-  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", skinUrl: SKIN_URL, turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
+  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", skinUrl: SKIN_URL, videoMax: Math.round(VID_MAX / 1048576), turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
 });
 
 // ---- Staff (nombre y rango, nada más) ----
@@ -170,20 +171,20 @@ app.get("/api/top", async (req, res) => {
 });
 
 // ---- Noticias / actualizaciones / FAQ / reglas / fotos ----
-const TYPES = ["news", "update", "faq", "photo", "rules", "review", "post"]; // post = publicaciones de los jugadores (muro) // review = testimonios (los publica el staff)
+const TYPES = ["news", "update", "faq", "photo", "rules", "review", "post", "story"]; // post = publicaciones de los jugadores (muro) // review = testimonios (los publica el staff)
 const staffOnly = async (req, res) => { const u = await me(req); if (!u || u.admin_level < MIN_POST) { res.status(403).json({ error: "No tienes permiso" }); return null; } return u; };
 app.get("/api/posts", async (req, res) => {
   const type = TYPES.includes(req.query.type) ? req.query.type : null, uid = sessionId(req) || 0;
-  const paged = req.query.page !== undefined, per = paged ? 12 : 50, pg = Math.min(1000, Math.max(0, Number(req.query.page) || 0)); // con ?page= devuelve 12 (+1 para saber si hay siguiente)
+  const paged = req.query.page !== undefined, per = paged ? 12 : req.query.type === "story" ? 150 : 50, pg = Math.min(1000, Math.max(0, Number(req.query.page) || 0)); // con ?page= devuelve 12 (+1 para saber si hay siguiente)
   const where = [], wp = [], au = str(req.query.author);
-  if (req.query.type === "feed") where.push("p.type IN ('post','news','update')"); else if (type) { where.push("p.type = ?"); wp.push(type); }
+  if (req.query.type === "feed") where.push("(p.type IN ('post','news','update') OR (p.type = 'story' AND p.created_at > NOW() - INTERVAL 24 HOUR))"); else if (type) { where.push("p.type = ?"); wp.push(type); if (type === "story") where.push("p.created_at > NOW() - INTERVAL 24 HOUR"); } // las historias duran 24 h
   if (/^\w{1,24}$/.test(au)) { where.push("p.author = ?"); wp.push(au); }
-  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, (SELECT ${SKIN_COL} FROM player WHERE name = p.author LIMIT 1) AS skin, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [uid, ...wp, paged ? per + 1 : per, pg * per]));
+  res.json(await attach(await q(`SELECT p.id, p.type, p.title, p.body, p.author, (SELECT ${SKIN_COL} FROM player WHERE name = p.author LIMIT 1) AS skin, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [uid, ...wp, paged ? per + 1 : per, pg * per])));
 });
 app.post("/api/posts", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
   const type = str(req.body.type), title = str(req.body.title).trim(), body = str(req.body.body).trim();
-  if (!TYPES.includes(type) || !title || !body) return res.status(400).json({ error: "Faltan datos" });
+  if (!TYPES.includes(type) || type === "story" || !title || !body) return res.status(400).json({ error: "Faltan datos" });
   if (type === "photo" && !/^https:\/\/[^\s"'<>]{4,500}$/.test(body)) return res.status(400).json({ error: "El enlace de la foto debe empezar con https://" });
   await q("INSERT INTO web_posts (type, title, body, author) VALUES (?, ?, ?, ?)", [type, title.slice(0, 120), body.slice(0, 4000), u.name]);
   res.json({ ok: true });
@@ -199,22 +200,26 @@ app.delete("/api/posts/:id", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   const id = pid(req.params.id), p = (await q("SELECT body, type, author FROM web_posts WHERE id = ?", [id]))[0];
   if (!p) return res.status(404).json({ error: "No existe" });
-  if (u.admin_level < MIN_POST && !(p.type === "post" && p.author === u.name)) return res.status(403).json({ error: "No tienes permiso" }); // el staff borra cualquiera; cada jugador, solo lo suyo
+  if (u.admin_level < MIN_POST && !((p.type === "post" || p.type === "story") && p.author === u.name)) return res.status(403).json({ error: "No tienes permiso" }); // el staff borra cualquiera; cada jugador, solo lo suyo
   const im = /^\/img\/(\d+)$/.exec(p?.body || "");
   if (im) await q("DELETE FROM web_images WHERE id = ?", [im[1]]);
-  await q("DELETE FROM web_likes WHERE post_id = ?", [id]);
-  await q("DELETE FROM web_comments WHERE post_id = ?", [id]);
-  await q("DELETE FROM web_posts WHERE id = ?", [id]);
+  await removePosts([id]);
   res.json({ ok: true });
 });
 // ---- Muro: cualquier jugador con sesión publica; el perfil público de cada jugador ----
 app.post("/api/wall", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   const body = str(req.body.body).trim().slice(0, 1000);
-  if (!body) return res.status(400).json({ error: "Escribe algo para publicar" });
+  const mids = [...new Set((Array.isArray(req.body.media) ? req.body.media : []).slice(0, 4).map(pid).filter(Boolean))];
+  const tags = [...new Set((Array.isArray(req.body.tags) ? req.body.tags : []).map(str).filter((n) => /^\w{1,24}$/.test(n)))].slice(0, 10);
+  if (!body && !mids.length) return res.status(400).json({ error: "Escribe algo o agrega una foto" });
   if (!hit("p|" + u.id, 5, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
-  await q("INSERT INTO web_posts (type, title, body, author) VALUES ('post', '', ?, ?)", [body, u.name]);
-  res.json({ ok: true });
+  if (mids.length && (await q("SELECT m.id FROM web_media m WHERE m.id IN (?) AND m.owner = ? AND m.kind = 'img' AND NOT EXISTS (SELECT 1 FROM web_post_media x WHERE x.media_id = m.id)", [mids, u.id])).length !== mids.length) return res.status(400).json({ error: "Alguna foto no es válida, vuelve a subirla" });
+  const tg = tags.length ? await q("SELECT id, name FROM player WHERE name IN (?)", [tags]) : [];
+  const r = await q("INSERT INTO web_posts (type, title, body, author) VALUES ('post', '', ?, ?)", [body, u.name]);
+  for (const [i, m] of mids.entries()) await q("INSERT INTO web_post_media (post_id, media_id, pos) VALUES (?, ?, ?)", [r.insertId, m, i]);
+  for (const t of tg) await q("INSERT IGNORE INTO web_tags (post_id, player_id, name) VALUES (?, ?, ?)", [r.insertId, t.id, t.name]);
+  res.json({ ok: true, id: r.insertId });
 });
 app.get("/api/user/:name", async (req, res) => {
   const n = str(req.params.name);
@@ -289,6 +294,99 @@ app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- Medios (fotos y videos): se guardan en la base de datos en trozos, con soporte de Range (necesario para videos en iPhone) ----
+const imgOk = (m, b) => (m === "image/jpeg" && b[0] === 0xff && b[1] === 0xd8) || (m === "image/png" && b[0] === 0x89 && b[1] === 0x50) || (m === "image/webp" && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP");
+function mp4Dur(b) { // duración en segundos leyendo moov > mvhd (MP4/MOV)
+  try {
+    const find = (st, en, name) => { let o = st; while (o + 8 <= en) { let sz = b.readUInt32BE(o), hd = 8; const ty = b.toString("ascii", o + 4, o + 8); if (sz === 1) { sz = Number(b.readBigUInt64BE(o + 8)); hd = 16; } else if (sz === 0) sz = en - o; if (sz < hd) return null; if (ty === name) return [o + hd, Math.min(o + sz, en)]; o += sz; } return null; };
+    const mo = find(0, b.length, "moov"), mv = mo && find(mo[0], mo[1], "mvhd"); if (!mv) return null;
+    const v = b[mv[0]], p = mv[0] + 4, ts = v === 1 ? b.readUInt32BE(p + 16) : b.readUInt32BE(p + 8), du = v === 1 ? Number(b.readBigUInt64BE(p + 20)) : b.readUInt32BE(p + 12);
+    return ts ? du / ts : null;
+  } catch { return null; }
+}
+function webmDur(b) { // duración en segundos leyendo Duration y TimecodeScale (WebM)
+  try {
+    const h = b.subarray(0, 8192); if (h.readUInt32BE(0) !== 0x1a45dfa3) return null;
+    let sc = 1e6; const i = h.indexOf(Buffer.from([0x2a, 0xd7, 0xb1])); if (i >= 0) { const n = h[i + 3] - 0x80; if (n >= 1 && n <= 6) sc = h.readUIntBE(i + 4, n); }
+    const j = h.indexOf(Buffer.from([0x44, 0x89])); if (j < 0) return null;
+    const d = h[j + 2] === 0x84 ? h.readFloatBE(j + 3) : h[j + 2] === 0x88 ? h.readDoubleBE(j + 3) : null;
+    return d == null ? null : (d * sc) / 1e9;
+  } catch { return null; }
+}
+const delMedia = async (ids) => { ids = ids.filter(Boolean); if (!ids.length) return; await q("DELETE FROM web_media_chunks WHERE media_id IN (?)", [ids]); await q("DELETE FROM web_media WHERE id IN (?)", [ids]); };
+async function removePosts(ids) { // borra publicaciones con sus me gusta, comentarios, etiquetas y medios
+  if (!ids.length) return;
+  const ms = await q("SELECT m.id, m.thumb FROM web_post_media pm JOIN web_media m ON m.id = pm.media_id WHERE pm.post_id IN (?)", [ids]);
+  for (const t of ["web_post_media", "web_tags", "web_likes", "web_comments"]) await q(`DELETE FROM ${t} WHERE post_id IN (?)`, [ids]);
+  await q("DELETE FROM web_posts WHERE id IN (?)", [ids]);
+  await delMedia(ms.flatMap((m) => [m.id, m.thumb]));
+}
+async function attach(rows) { // añade fotos/videos y etiquetas a cada publicación
+  if (!rows.length) return rows;
+  const ids = rows.map((r) => r.id), ms = await q("SELECT pm.post_id, m.id, m.kind, m.thumb FROM web_post_media pm JOIN web_media m ON m.id = pm.media_id WHERE pm.post_id IN (?) ORDER BY pm.pos", [ids]), ts = await q("SELECT post_id, name FROM web_tags WHERE post_id IN (?) ORDER BY player_id", [ids]);
+  for (const r of rows) { r.media = ms.filter((m) => m.post_id === r.id).map((m) => ({ id: m.id, kind: m.kind, thumb: m.thumb })); r.tags = ts.filter((t) => t.post_id === r.id).map((t) => t.name); }
+  return rows;
+}
+async function cleanup() { // historias vencidas (24 h) y medios huérfanos
+  try {
+    await removePosts((await q("SELECT id FROM web_posts WHERE type = 'story' AND created_at < NOW() - INTERVAL 24 HOUR")).map((r) => r.id));
+    await delMedia((await q("SELECT m.id FROM web_media m LEFT JOIN web_post_media pm ON pm.media_id = m.id LEFT JOIN web_media v ON v.thumb = m.id WHERE m.created_at < NOW() - INTERVAL 2 HOUR AND pm.media_id IS NULL AND v.id IS NULL")).map((r) => r.id));
+  } catch (e) { console.log("[cleanup]", e.message); }
+}
+app.post("/api/media", express.raw({ type: () => true, limit: VID_MAX }), async (req, res) => {
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  if (req.headers["x-sc"] !== "1") return res.status(403).json({ error: "Petición no válida" });
+  if (!hit("m|" + u.id, 20, 600000)) return res.status(429).json({ error: "Demasiadas subidas, espera unos minutos" });
+  const kind = req.query.kind === "vid" ? "vid" : "img", mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase(), buf = req.body;
+  if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: "Archivo vacío" });
+  let thumb = null;
+  if (kind === "img") { if (!imgOk(mime, buf) || buf.length > IMG_MAX) return res.status(400).json({ error: "Imagen no válida o muy pesada" }); }
+  else {
+    const mp = mime === "video/mp4" || mime === "video/quicktime", wb = mime === "video/webm";
+    if ((!mp && !wb) || buf.length > VID_MAX || (mp && buf.toString("ascii", 4, 8) !== "ftyp")) return res.status(400).json({ error: "Video no válido. Usa MP4 de hasta " + Math.round(VID_MAX / 1048576) + " MB" });
+    const d = mp ? mp4Dur(buf) : webmDur(buf);
+    if (d == null || d > VID_SECS) return res.status(400).json({ error: d == null ? "No pude leer la duración del video. Usa un MP4." : "El video debe durar máximo 15 segundos" });
+    thumb = pid(req.query.thumb);
+    if (!thumb || !(await q("SELECT id FROM web_media WHERE id = ? AND owner = ? AND kind = 'img'", [thumb, u.id])).length) return res.status(400).json({ error: "Falta la miniatura del video" });
+  }
+  const r = await q("INSERT INTO web_media (owner, kind, mime, size, thumb) VALUES (?, ?, ?, ?, ?)", [u.id, kind, mime, buf.length, thumb]);
+  try { for (let n = 0, o = 0; o < buf.length; n++, o += CH) await q("INSERT INTO web_media_chunks (media_id, n, data) VALUES (?, ?, ?)", [r.insertId, n, buf.subarray(o, o + CH)]); }
+  catch (e) { await delMedia([r.insertId]); throw e; }
+  res.json({ id: r.insertId, kind });
+});
+app.get("/media/:id(\\d+)", async (req, res) => {
+  const m = (await q("SELECT mime, size FROM web_media WHERE id = ?", [req.params.id]))[0];
+  if (!m) return res.status(404).end();
+  const size = Number(m.size); let s = 0, e = size - 1, part = false;
+  const rg = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (rg && (rg[1] || rg[2])) {
+    part = true;
+    if (rg[1] === "") s = Math.max(0, size - Number(rg[2])); else { s = Number(rg[1]); if (rg[2]) e = Math.min(e, Number(rg[2])); }
+    if (s > e) return res.status(416).set("Content-Range", `bytes */${size}`).end();
+    e = Math.min(e, s + 2 * 1048576 - 1);
+  }
+  const a = Math.floor(s / CH), rows = await q("SELECT data FROM web_media_chunks WHERE media_id = ? AND n BETWEEN ? AND ? ORDER BY n", [req.params.id, a, Math.floor(e / CH)]);
+  const buf = Buffer.concat(rows.map((r) => r.data)).subarray(s - a * CH, e - a * CH + 1);
+  res.status(part ? 206 : 200).set({ "Content-Type": m.mime, "Accept-Ranges": "bytes", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400", ...(part ? { "Content-Range": `bytes ${s}-${e}/${size}` } : {}) }).end(buf);
+});
+// ---- Historias: una foto o video (máx. 15 s) por historia; duran 24 h; usan los mismos me gusta y comentarios que las publicaciones ----
+app.post("/api/stories", async (req, res) => {
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  const mid = pid(req.body.media), cap = str(req.body.body).trim().slice(0, 200);
+  if (!hit("s|" + u.id, 10, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
+  if (!mid || !(await q("SELECT m.id FROM web_media m WHERE m.id = ? AND m.owner = ? AND NOT EXISTS (SELECT 1 FROM web_post_media x WHERE x.media_id = m.id)", [mid, u.id])).length) return res.status(400).json({ error: "Sube primero la foto o el video" });
+  const r = await q("INSERT INTO web_posts (type, title, body, author) VALUES ('story', '', ?, ?)", [cap, u.name]);
+  await q("INSERT INTO web_post_media (post_id, media_id, pos) VALUES (?, ?, 0)", [r.insertId, mid]);
+  res.json({ ok: true, id: r.insertId });
+});
+// ---- Buscar jugadores para etiquetar (solo nombre y skin) ----
+app.get("/api/users/search", async (req, res) => {
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  const v = str(req.query.q).trim().replace(/\s+/g, "_").slice(0, 24).replace(/[\\%_]/g, "\\$&");
+  if (v.length < 2) return res.json([]);
+  res.json(await q(`SELECT name, ${SKIN_COL} AS skin FROM player WHERE name LIKE ? ORDER BY connected DESC, name LIMIT 8`, [`%${v}%`]));
+});
+
 // ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
 const fs = require("fs");
 // Cada página es su propio archivo en public/ con su propia URL (ver README)
@@ -319,5 +417,10 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_images (id INT AUTO_INCREMENT PRIMARY KEY, mime VARCHAR(16) NOT NULL, data MEDIUMBLOB NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_contact (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(80) NOT NULL, contact VARCHAR(80) NOT NULL, body VARCHAR(1000) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_tries (k VARCHAR(80) NOT NULL, t BIGINT NOT NULL, KEY k (k)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_media (id INT AUTO_INCREMENT PRIMARY KEY, owner INT NOT NULL, kind VARCHAR(3) NOT NULL, mime VARCHAR(20) NOT NULL, size INT NOT NULL, thumb INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY o (owner), KEY th (thumb)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_media_chunks (media_id INT NOT NULL, n INT NOT NULL, data MEDIUMBLOB NOT NULL, PRIMARY KEY (media_id, n)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_post_media (post_id INT NOT NULL, media_id INT NOT NULL, pos TINYINT NOT NULL DEFAULT 0, PRIMARY KEY (post_id, media_id), KEY m (media_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_tags (post_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, PRIMARY KEY (post_id, player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  setInterval(cleanup, 3600000).unref(); cleanup();
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
 })().catch((e) => { console.error("No pude conectar con la base de datos:", e.message); process.exit(1); });
