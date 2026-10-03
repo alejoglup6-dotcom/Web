@@ -170,12 +170,15 @@ app.get("/api/top", async (req, res) => {
 });
 
 // ---- Noticias / actualizaciones / FAQ / reglas / fotos ----
-const TYPES = ["news", "update", "faq", "photo", "rules", "review"]; // review = testimonios (los publica el staff)
+const TYPES = ["news", "update", "faq", "photo", "rules", "review", "post"]; // post = publicaciones de los jugadores (muro) // review = testimonios (los publica el staff)
 const staffOnly = async (req, res) => { const u = await me(req); if (!u || u.admin_level < MIN_POST) { res.status(403).json({ error: "No tienes permiso" }); return null; } return u; };
 app.get("/api/posts", async (req, res) => {
   const type = TYPES.includes(req.query.type) ? req.query.type : null, uid = sessionId(req) || 0;
   const paged = req.query.page !== undefined, per = paged ? 12 : 50, pg = Math.min(1000, Math.max(0, Number(req.query.page) || 0)); // con ?page= devuelve 12 (+1 para saber si hay siguiente)
-  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, (SELECT ${SKIN_COL} FROM player WHERE name = p.author LIMIT 1) AS skin, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${type ? "WHERE p.type = ?" : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [...(type ? [uid, type] : [uid]), paged ? per + 1 : per, pg * per]));
+  const where = [], wp = [], au = str(req.query.author);
+  if (req.query.type === "feed") where.push("p.type IN ('post','news','update')"); else if (type) { where.push("p.type = ?"); wp.push(type); }
+  if (/^\w{1,24}$/.test(au)) { where.push("p.author = ?"); wp.push(au); }
+  res.json(await q(`SELECT p.id, p.type, p.title, p.body, p.author, (SELECT ${SKIN_COL} FROM player WHERE name = p.author LIMIT 1) AS skin, p.created_at, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine FROM web_posts p ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ? OFFSET ?`, [uid, ...wp, paged ? per + 1 : per, pg * per]));
 });
 app.post("/api/posts", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
@@ -193,13 +196,34 @@ app.put("/api/posts/:id", async (req, res) => {
   res.json({ ok: true });
 });
 app.delete("/api/posts/:id", async (req, res) => {
-  const u = await staffOnly(req, res); if (!u) return;
-  const id = pid(req.params.id), p = (await q("SELECT body FROM web_posts WHERE id = ?", [id]))[0], im = /^\/img\/(\d+)$/.exec(p?.body || "");
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  const id = pid(req.params.id), p = (await q("SELECT body, type, author FROM web_posts WHERE id = ?", [id]))[0];
+  if (!p) return res.status(404).json({ error: "No existe" });
+  if (u.admin_level < MIN_POST && !(p.type === "post" && p.author === u.name)) return res.status(403).json({ error: "No tienes permiso" }); // el staff borra cualquiera; cada jugador, solo lo suyo
+  const im = /^\/img\/(\d+)$/.exec(p?.body || "");
   if (im) await q("DELETE FROM web_images WHERE id = ?", [im[1]]);
   await q("DELETE FROM web_likes WHERE post_id = ?", [id]);
   await q("DELETE FROM web_comments WHERE post_id = ?", [id]);
   await q("DELETE FROM web_posts WHERE id = ?", [id]);
   res.json({ ok: true });
+});
+// ---- Muro: cualquier jugador con sesión publica; el perfil público de cada jugador ----
+app.post("/api/wall", async (req, res) => {
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  const body = str(req.body.body).trim().slice(0, 1000);
+  if (!body) return res.status(400).json({ error: "Escribe algo para publicar" });
+  if (!hit("p|" + u.id, 5, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
+  await q("INSERT INTO web_posts (type, title, body, author) VALUES ('post', '', ?, ?)", [body, u.name]);
+  res.json({ ok: true });
+});
+app.get("/api/user/:name", async (req, res) => {
+  const n = str(req.params.name);
+  if (!/^\w{1,24}$/.test(n)) return res.status(404).json({ error: "No existe" });
+  const r = (await q(`SELECT name, ${SKIN_COL} AS skin, admin_level, level, rep, time_playing, reg_date, last_connection, connected FROM player WHERE name = ?`, [n]))[0];
+  if (!r) return res.status(404).json({ error: "No existe" });
+  const posts = (await q("SELECT COUNT(*) AS n FROM web_posts WHERE author = ? AND type = 'post'", [r.name]))[0].n;
+  const likes = (await q("SELECT COUNT(*) AS n FROM web_likes l JOIN web_posts p ON p.id = l.post_id WHERE p.author = ? AND p.type = 'post'", [r.name]))[0].n;
+  res.json({ name: r.name, skin: r.skin, rango: ADMIN_LEVELS[r.admin_level] || "Ciudadano", level: r.level, rep: r.rep, time_playing: r.time_playing, reg_date: r.reg_date, last_connection: r.last_connection, connected: r.connected, posts: Number(posts), likes: Number(likes) }); // sin dinero, teléfono ni datos privados
 });
 // ---- Contacto: lo envía cualquiera, solo el staff lo lee ----
 app.post("/api/contact", async (req, res) => {
@@ -268,10 +292,12 @@ app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
 // ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
 const fs = require("fs");
 // Cada página es su propio archivo en public/ con su propia URL (ver README)
-const ROUTES = { "/": "index", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil" };
-const PAGES = {};
+const ROUTES = { "/": "index", "/feed": "feed", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil" };
+const PAGES = {}, VER = Date.now().toString(36); // la versión cambia en cada arranque: el navegador siempre baja el CSS/JS nuevo
+const USER_PAGE = fs.readFileSync(path.join(__dirname, "public", "usuario.html"), "utf8").replace(/\?v=1/g, "?v=" + VER);
+app.get("/u/:name", (req, res) => (/^\w{1,24}$/.test(req.params.name) ? res.type("html").set("Cache-Control", "no-cache").send(USER_PAGE) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
 for (const [url, file] of Object.entries(ROUTES)) {
-  PAGES[url] = fs.readFileSync(path.join(__dirname, "public", file + ".html"), "utf8").replace(/\{\{BASE\}\}/g, BASE);
+  PAGES[url] = fs.readFileSync(path.join(__dirname, "public", file + ".html"), "utf8").replace(/\{\{BASE\}\}/g, BASE).replace(/\?v=1/g, "?v=" + VER);
   app.get(url === "/" ? ["/", "/index.html"] : [url, url + ".html"], (req, res) => res.type("html").set("Cache-Control", "public, max-age=300").send(PAGES[url]));
 }
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\n\nSitemap: ${BASE}/sitemap.xml\n`));
