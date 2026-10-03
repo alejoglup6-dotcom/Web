@@ -97,6 +97,30 @@ const me = async (req) => {
   return r[0] || null;
 };
 
+// ---- Notificaciones: me gusta, comentarios, menciones, etiquetas, noticias, amistades (por agregar), etc. ----
+// notify(destino, actor, tipo, id_publicación, texto): cualquier parte del servidor puede crear una notificación.
+// Para solicitudes de amistad usa los tipos "friend_req" (te enviaron una) y "friend_acc" (aceptaron la tuya).
+const BCAST = Number(E.NOTIF_BROADCAST_MAX) || 3000; // a cuántos jugadores como máximo se avisa de una noticia/actualización nueva
+const ONCE = new Set(["like", "tag", "mention", "friend_req"]); // no se repite si ya existe (mismo actor y publicación)
+const UNREAD_ONCE = new Set(["reply", "contact"]); // no se repite mientras haya una sin leer igual
+// Solo notificaciones cuya publicación sigue existiendo (y cuyas historias no han caducado)
+const NJ = "FROM web_notifs n LEFT JOIN web_posts p ON p.id = n.post_id LEFT JOIN player a ON a.id = n.actor_id WHERE n.player_id = ? AND (n.post_id IS NULL OR p.id IS NOT NULL) AND (p.type IS NULL OR p.type <> 'story' OR p.created_at > NOW() - INTERVAL 24 HOUR)";
+async function notify(to, actor, type, postId = null, body = "") {
+  try {
+    if (!to || String(to) === String(actor.id)) return; // nadie se notifica a sí mismo
+    if (ONCE.has(type) && (await q("SELECT 1 FROM web_notifs WHERE player_id = ? AND actor_id = ? AND type = ? AND post_id <=> ? LIMIT 1", [to, actor.id, type, postId])).length) return;
+    if (UNREAD_ONCE.has(type) && (await q("SELECT 1 FROM web_notifs WHERE player_id = ? AND type = ? AND post_id <=> ? AND seen = 0 LIMIT 1", [to, type, postId])).length) return;
+    await q("INSERT INTO web_notifs (player_id, actor_id, type, post_id, body) VALUES (?, ?, ?, ?, ?)", [to, actor.id, type, postId, String(body).replace(/\s+/g, " ").trim().slice(0, 140)]);
+  } catch (e) { console.log("[notif]", e.message); }
+}
+const unreadCount = async (uid) => Number((await q(`SELECT COUNT(*) AS n ${NJ} AND n.seen = 0`, [uid]))[0].n);
+async function mentioned(text, selfId) { // jugadores citados con @Nombre_Apellido que existen
+  const names = [...new Set([...String(text).matchAll(/(?:^|[^\w@])@(\w{1,24})/g)].map((m) => m[1]))].slice(0, 10);
+  if (!names.length) return [];
+  return (await q("SELECT id, name FROM player WHERE name IN (?)", [names])).filter((r) => String(r.id) !== String(selfId));
+}
+const postOwner = async (id) => (await q("SELECT p.type, pl.id AS aid FROM web_posts p LEFT JOIN player pl ON pl.name = p.author WHERE p.id = ?", [id]))[0];
+
 // ---- Login ----
 app.post("/api/login", async (req, res) => {
   const name = str(req.body.name).trim().slice(0, 24), pass = str(req.body.password).slice(0, 72).replace(/%/g, "#"); // el juego cambia % por # en todo lo que se escribe
@@ -122,7 +146,8 @@ app.get("/api/me", async (req, res) => {
   if (!u) return res.json({ user: null });
   const a = (await q(`SELECT p.name, p.${SKIN_COL} AS skin, p.reg_date, p.last_connection, p.time_playing, p.level, p.rep, p.connected, p.admin_level, p.vip, p.vip_expire_date, p.cash, p.bank_money, p.phone_number, p.wanted_level, p.arrests_count, p.kills_count, c.name AS crew FROM player p LEFT JOIN crews c ON c.id = p.crew WHERE p.id = ?`, [u.id]))[0];
   const d = (await q("SELECT discord_id, linked_at FROM discord_links WHERE player_id = ?", [u.id]))[0];
-  res.json({ user: { ...a, rango: ADMIN_LEVELS[a.admin_level] || "Ciudadano", canPost: a.admin_level >= MIN_POST, discord: d || null } });
+  const unread = await unreadCount(u.id).catch(() => 0);
+  res.json({ user: { ...a, rango: ADMIN_LEVELS[a.admin_level] || "Ciudadano", canPost: a.admin_level >= MIN_POST, discord: d || null, unread } });
 });
 
 // ---- Vincular Discord (OAuth2: solo se lee el id del usuario) ----
@@ -146,6 +171,7 @@ app.get("/auth/discord/callback", async (req, res) => {
     const already = (await q("SELECT player_id FROM discord_links WHERE discord_id = ? OR player_id = ?", [d.id, u.id]))[0];
     if (already) return res.redirect("/perfil?discord=duplicado");
     await q("INSERT INTO discord_links (player_id, discord_id) VALUES (?, ?)", [u.id, d.id]);
+    await notify(u.id, { id: 0 }, "discord");
     res.redirect("/perfil?discord=ok");
   } catch (e) { console.log("[discord]", e.message); res.redirect("/perfil?discord=error"); }
 });
@@ -153,6 +179,31 @@ app.delete("/api/discord", async (req, res) => {
   const u = await me(req);
   if (!u) return res.status(401).json({ error: "Inicia sesión" });
   await q("DELETE FROM discord_links WHERE player_id = ?", [u.id]);
+  res.json({ ok: true });
+});
+
+// ---- Notificaciones (API) ----
+app.get("/api/notifications/count", async (req, res) => {
+  const id = sessionId(req);
+  res.json({ n: id ? await unreadCount(id).catch(() => 0) : 0 });
+});
+app.get("/api/notifications", async (req, res) => {
+  const id = sessionId(req);
+  if (!id) return res.status(401).json({ error: "Inicia sesión" });
+  const before = pid(req.query.before), unread = req.query.unread === "1";
+  res.json(await q(`SELECT n.id, n.type, n.post_id, n.body, n.seen, n.created_at, a.name AS actor, a.${SKIN_COL} AS skin, p.type AS ptype ${NJ} ${before ? "AND n.id < ?" : ""} ${unread ? "AND n.seen = 0" : ""} ORDER BY n.id DESC LIMIT 31`, before ? [id, before] : [id]));
+});
+app.post("/api/notifications/read", async (req, res) => { // con id marca una; sin id, todas
+  const id = sessionId(req);
+  if (!id) return res.status(401).json({ error: "Inicia sesión" });
+  const n = pid(req.body.id);
+  await q(`UPDATE web_notifs SET seen = 1 WHERE player_id = ? ${n ? "AND id = ?" : ""}`, n ? [id, n] : [id]);
+  res.json({ ok: true });
+});
+app.delete("/api/notifications/:id(\\d+)", async (req, res) => {
+  const id = sessionId(req);
+  if (!id) return res.status(401).json({ error: "Inicia sesión" });
+  await q("DELETE FROM web_notifs WHERE id = ? AND player_id = ?", [pid(req.params.id), id]);
   res.json({ ok: true });
 });
 
@@ -195,7 +246,8 @@ app.post("/api/posts", async (req, res) => {
   const type = str(req.body.type), title = str(req.body.title).trim(), body = str(req.body.body).trim();
   if (!TYPES.includes(type) || type === "story" || !title || !body) return res.status(400).json({ error: "Faltan datos" });
   if (type === "photo" && !/^https:\/\/[^\s"'<>]{4,500}$/.test(body)) return res.status(400).json({ error: "El enlace de la foto debe empezar con https://" });
-  await q("INSERT INTO web_posts (type, title, body, author) VALUES (?, ?, ?, ?)", [type, title.slice(0, 120), body.slice(0, 4000), u.name]);
+  const ins = await q("INSERT INTO web_posts (type, title, body, author) VALUES (?, ?, ?, ?)", [type, title.slice(0, 120), body.slice(0, 4000), u.name]);
+  if (type === "news" || type === "update") try { await q("INSERT INTO web_notifs (player_id, actor_id, type, post_id, body) SELECT id, ?, ?, ?, ? FROM player WHERE id <> ? ORDER BY id DESC LIMIT ?", [u.id, type, ins.insertId, title.slice(0, 120), u.id, BCAST]); } catch (e) { console.log("[notif]", e.message); }
   res.json({ ok: true });
 });
 app.put("/api/posts/:id", async (req, res) => {
@@ -228,6 +280,9 @@ app.post("/api/wall", async (req, res) => {
   const r = await q("INSERT INTO web_posts (type, title, body, author) VALUES ('post', '', ?, ?)", [body, u.name]);
   for (const [i, m] of mids.entries()) await q("INSERT INTO web_post_media (post_id, media_id, pos) VALUES (?, ?, ?)", [r.insertId, m, i]);
   for (const t of tg) await q("INSERT IGNORE INTO web_tags (post_id, player_id, name) VALUES (?, ?, ?)", [r.insertId, t.id, t.name]);
+  const done = new Set(tg.map((t) => String(t.id)));
+  for (const t of tg) await notify(t.id, u, "tag", r.insertId, body);
+  for (const m of await mentioned(body, u.id)) if (!done.has(String(m.id))) await notify(m.id, u, "mention", r.insertId, body);
   res.json({ ok: true, id: r.insertId });
 });
 app.get("/api/user/:name", async (req, res) => {
@@ -247,6 +302,7 @@ app.post("/api/contact", async (req, res) => {
   if (!hit("c|" + req.ip, 3, 3600000)) return res.status(429).json({ error: "Ya enviaste varios mensajes. Inténtalo más tarde." });
   if (!(await captchaOk(req))) return res.status(400).json({ error: "Completa la verificación anti-robots", captcha: true });
   await q("INSERT INTO web_contact (name, contact, body) VALUES (?, ?, ?)", [name, contact, body]);
+  for (const s of await q("SELECT id FROM player WHERE admin_level >= ? LIMIT 100", [MIN_POST]).catch(() => [])) await notify(s.id, { id: 0 }, "contact");
   res.json({ ok: true });
 });
 app.get("/api/contact", async (req, res) => {
@@ -279,9 +335,11 @@ app.get("/img/:id(\\d+)", async (req, res) => {
 app.post("/api/posts/:id/like", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   const id = pid(req.params.id);
-  if (!(await q("SELECT 1 FROM web_posts WHERE id = ?", [id])).length) return res.status(404).json({ error: "No existe" });
+  const own = await postOwner(id);
+  if (!own) return res.status(404).json({ error: "No existe" });
   const del = await q("DELETE FROM web_likes WHERE post_id = ? AND player_id = ?", [id, u.id]);
-  if (!del.affectedRows) await q("INSERT IGNORE INTO web_likes (post_id, player_id) VALUES (?, ?)", [id, u.id]);
+  if (!del.affectedRows) { await q("INSERT IGNORE INTO web_likes (post_id, player_id) VALUES (?, ?)", [id, u.id]); await notify(own.aid, u, "like", id); }
+  else await q("DELETE FROM web_notifs WHERE actor_id = ? AND post_id = ? AND type = 'like'", [u.id, id]); // quitar el me gusta quita el aviso
   res.json({ liked: !del.affectedRows, likes: Number((await q("SELECT COUNT(*) AS n FROM web_likes WHERE post_id = ?", [id]))[0].n) });
 });
 app.get("/api/posts/:id/comments", async (req, res) => {
@@ -292,9 +350,16 @@ app.post("/api/posts/:id/comments", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   const id = pid(req.params.id), body = str(req.body.body).trim().slice(0, 300);
   if (!body) return res.status(400).json({ error: "Escribe algo" });
-  if (!(await q("SELECT 1 FROM web_posts WHERE id = ?", [id])).length) return res.status(404).json({ error: "No existe" });
+  const own = await postOwner(id);
+  if (!own) return res.status(404).json({ error: "No existe" });
   if (Number((await q("SELECT COUNT(*) AS n FROM web_comments WHERE player_id = ? AND created_at > NOW() - INTERVAL 1 MINUTE", [u.id]))[0].n) >= 5) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
   await q("INSERT INTO web_comments (post_id, player_id, author, body) VALUES (?, ?, ?, ?)", [id, u.id, u.name, body]);
+  // avisos: citados (@) → dueño de la publicación → quienes ya habían comentado
+  const sent = new Set();
+  for (const m of await mentioned(body, u.id)) { sent.add(String(m.id)); await notify(m.id, u, "mention_c", id, body); }
+  if (own.aid && !sent.has(String(own.aid))) await notify(own.aid, u, "comment", id, body);
+  if (own.aid) sent.add(String(own.aid));
+  for (const c of await q("SELECT DISTINCT player_id FROM web_comments WHERE post_id = ? AND player_id <> ? LIMIT 20", [id, u.id]).catch(() => [])) if (!sent.has(String(c.player_id))) await notify(c.player_id, u, "reply", id, body);
   res.json({ ok: true });
 });
 app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
@@ -326,7 +391,7 @@ const delMedia = async (ids) => { ids = ids.filter(Boolean); if (!ids.length) re
 async function removePosts(ids) { // borra publicaciones con sus me gusta, comentarios, etiquetas y medios
   if (!ids.length) return;
   const ms = await q("SELECT m.id, m.thumb FROM web_post_media pm JOIN web_media m ON m.id = pm.media_id WHERE pm.post_id IN (?)", [ids]);
-  for (const t of ["web_post_media", "web_tags", "web_likes", "web_comments"]) await q(`DELETE FROM ${t} WHERE post_id IN (?)`, [ids]);
+  for (const t of ["web_post_media", "web_tags", "web_likes", "web_comments", "web_notifs"]) await q(`DELETE FROM ${t} WHERE post_id IN (?)`, [ids]);
   await q("DELETE FROM web_posts WHERE id IN (?)", [ids]);
   await delMedia(ms.flatMap((m) => [m.id, m.thumb]));
 }
@@ -338,6 +403,7 @@ async function attach(rows) { // añade fotos/videos y etiquetas a cada publicac
 }
 async function cleanup() { // historias vencidas (24 h) y medios huérfanos
   try {
+    await q("DELETE FROM web_notifs WHERE created_at < NOW() - INTERVAL 45 DAY");
     await removePosts((await q("SELECT id FROM web_posts WHERE type = 'story' AND created_at < NOW() - INTERVAL 24 HOUR")).map((r) => r.id));
     await delMedia((await q("SELECT m.id FROM web_media m LEFT JOIN web_post_media pm ON pm.media_id = m.id LEFT JOIN web_media v ON v.thumb = m.id WHERE m.created_at < NOW() - INTERVAL 2 HOUR AND pm.media_id IS NULL AND v.id IS NULL")).map((r) => r.id));
   } catch (e) { console.log("[cleanup]", e.message); }
@@ -399,7 +465,7 @@ app.get("/api/users/search", async (req, res) => {
 // ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
 const fs = require("fs");
 // Cada página es su propio archivo en public/ con su propia URL (ver README)
-const ROUTES = { "/": "index", "/feed": "feed", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil" };
+const ROUTES = { "/": "index", "/feed": "feed", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil", "/notificaciones": "notificaciones" };
 const PAGES = {}, VER = Date.now().toString(36); // la versión cambia en cada arranque: el navegador siempre baja el CSS/JS nuevo
 const USER_PAGE = fs.readFileSync(path.join(__dirname, "public", "usuario.html"), "utf8").replace(/\?v=1/g, "?v=" + VER);
 app.get("/u/:name", (req, res) => (/^\w{1,24}$/.test(req.params.name) ? res.type("html").set("Cache-Control", "no-cache").send(USER_PAGE) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
@@ -423,8 +489,8 @@ app.get("/p/:id(\\d+)", async (req, res) => { // enlace propio de cada publicaci
   } catch (e) { console.log("[p]", e.message); }
   res.type("html").set("Cache-Control", "no-cache").send(PUB_PAGE.replace(/\{\{OGTITLE\}\}/g, oe(t)).replace(/\{\{OGDESC\}\}/g, oe(d)).replace(/\{\{OGIMG\}\}/g, oe(img)).replace(/\{\{OGURL\}\}/g, oe(`${BASE}/p/${id}`)));
 });
-app.get("/robots.txt", (req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\n\nSitemap: ${BASE}/sitemap.xml\n`));
-app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${Object.keys(ROUTES).filter((u) => u !== "/perfil").map((u) => `  <url><loc>${BASE}${u}</loc><changefreq>${u === "/" || u === "/noticias" ? "daily" : "weekly"}</changefreq><priority>${u === "/" ? "1.0" : "0.7"}</priority></url>`).join("\n")}\n</urlset>\n`));
+app.get("/robots.txt", (req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\nDisallow: /notificaciones\n\nSitemap: ${BASE}/sitemap.xml\n`));
+app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${Object.keys(ROUTES).filter((u) => u !== "/perfil" && u !== "/notificaciones").map((u) => `  <url><loc>${BASE}${u}</loc><changefreq>${u === "/" || u === "/noticias" ? "daily" : "weekly"}</changefreq><priority>${u === "/" ? "1.0" : "0.7"}</priority></url>`).join("\n")}\n</urlset>\n`));
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h", setHeaders: (res, f) => { if (/[\\/]assets[\\/]/.test(f)) res.set("Cache-Control", "public, max-age=86400"); } }));
 // Página 404 propia (la API responde JSON)
 app.use((req, res) => (req.path.startsWith("/api/") ? res.status(404).json({ error: "No existe" }) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
@@ -446,6 +512,7 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_media_chunks (media_id INT NOT NULL, n INT NOT NULL, data MEDIUMBLOB NOT NULL, PRIMARY KEY (media_id, n)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_post_media (post_id INT NOT NULL, media_id INT NOT NULL, pos TINYINT NOT NULL DEFAULT 0, PRIMARY KEY (post_id, media_id), KEY m (media_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_tags (post_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, PRIMARY KEY (post_id, player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_notifs (id INT AUTO_INCREMENT PRIMARY KEY, player_id INT NOT NULL, actor_id INT NOT NULL DEFAULT 0, type VARCHAR(12) NOT NULL, post_id INT NULL, body VARCHAR(160) NOT NULL DEFAULT '', seen TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY pl (player_id, id), KEY pu (player_id, seen), KEY po (post_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   setInterval(cleanup, 3600000).unref(); cleanup();
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
 })().catch((e) => { console.error("No pude conectar con la base de datos:", e.message); process.exit(1); });

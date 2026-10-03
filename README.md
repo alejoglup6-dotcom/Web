@@ -68,3 +68,15 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - Historias: botón "Crear historia" en la franja del inicio. Una foto o un video MP4/MOV/WebM de **máx. 15 s** (el servidor lee la duración del archivo) y de `VIDEO_MAX_MB` MB (por defecto 25). Duran 24 h: al vencer se borran solas (cada hora) junto con sus medios, me gusta y comentarios. Se ven en el visor (toque derecho/izquierdo, mantener para pausar), con me gusta y comentarios, y aparecen en el feed con miniatura mientras estén activas.
 - Medios nuevos (tablas `web_media`, `web_media_chunks`, `web_post_media`, `web_tags`; se crean solas): se guardan en la base de datos en trozos de 256 KB y se sirven en `/media/:id` con soporte de Range.
 - Barra inferior: se quitaron Feed y Cámara; se agregaron Videos y Marketplace (por ahora muestran "Próximamente"). Cuando existan esas páginas, quita el atributo `data-soon` en `fbNav()` (`core.js`) y registra las rutas en `ROUTES`.
+
+## Notificaciones
+- Nueva página `/notificaciones` (`public/notificaciones.html` + `public/assets/js/pages/notificaciones.js`) y campana con contador en la **barra inferior** del celular, en la cabecera (PC) y en el menú lateral/hamburguesa. El contador se actualiza solo cada 45 s.
+- Avisan de: **me gusta** y **comentarios** en tus publicaciones/historias, **también comentó** (alguien comentó donde tú ya habías comentado), **menciones** `@Nombre_Apellido` en publicaciones y comentarios (al escribir `@` + 2 letras sale una lista de jugadores), **etiquetas** en publicaciones, **noticias y actualizaciones nuevas** del staff, **Discord vinculado** y, solo para el staff, **mensajes nuevos en Contacto**.
+- En la lista: filtros Todas / No leídas, "Marcar todo como leído", menú ••• por aviso (marcar como leída / eliminar) y "Ver anteriores". Al tocar un aviso se marca como leído y te lleva a la publicación (si es un comentario se abre con los comentarios desplegados).
+- Tabla nueva (se crea sola): `web_notifs`. Los avisos se borran con su publicación, al quitar el me gusta y a los 45 días. `NOTIF_BROADCAST_MAX` (opcional, por defecto 3000) limita a cuántos jugadores se avisa de una noticia/actualización.
+- **Solicitudes de amistad (por agregar):** ya están soportados los tipos `friend_req` y `friend_acc`. Cuando crees el sistema de amigos solo llama, en `server.js`:
+  - al enviar la solicitud: `await notify(idDestino, u, "friend_req");`
+  - al aceptarla: `await notify(idQuienLaEnvió, u, "friend_acc");`
+  
+  (`u` es el jugador que actúa, el que devuelve `me(req)`). Al tocar el aviso se abre el perfil de esa persona; si luego quieres botones Confirmar/Eliminar dentro del aviso, se añaden en `ntRow()` de `notificaciones.js`.
+- Para otro tipo de aviso: llama `notify(destino, actor, "tipo", idPublicación, "texto corto")`, y agrega el texto y el ícono del tipo en `NTX` y `NIC` de `notificaciones.js` (y el color en `.ty[data-ty=...]` del CSS).
