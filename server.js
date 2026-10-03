@@ -138,15 +138,15 @@ app.get("/auth/discord/callback", async (req, res) => {
     const u = await me(req);
     const st = (req.headers.cookie || "").match(/(?:^|; )dst=([^;]+)/)?.[1];
     res.append("Set-Cookie", `dst=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0${HTTPS ? "; Secure" : ""}`); // el estado se usa una sola vez
-    if (!u || !st || typeof req.query.state !== "string" || st !== req.query.state || typeof req.query.code !== "string" || !req.query.code) return res.redirect("/?discord=error");
+    if (!u || !st || typeof req.query.state !== "string" || st !== req.query.state || typeof req.query.code !== "string" || !req.query.code) return res.redirect("/perfil?discord=error");
     const t = await (await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }) })).json();
     const d = await (await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` } })).json();
-    if (!/^\d+$/.test(d.id || "")) return res.redirect("/?discord=error");
+    if (!/^\d+$/.test(d.id || "")) return res.redirect("/perfil?discord=error");
     const already = (await q("SELECT player_id FROM discord_links WHERE discord_id = ? OR player_id = ?", [d.id, u.id]))[0];
-    if (already) return res.redirect("/?discord=duplicado");
+    if (already) return res.redirect("/perfil?discord=duplicado");
     await q("INSERT INTO discord_links (player_id, discord_id) VALUES (?, ?)", [u.id, d.id]);
-    res.redirect("/?discord=ok");
-  } catch (e) { console.log("[discord]", e.message); res.redirect("/?discord=error"); }
+    res.redirect("/perfil?discord=ok");
+  } catch (e) { console.log("[discord]", e.message); res.redirect("/perfil?discord=error"); }
 });
 app.delete("/api/discord", async (req, res) => {
   const u = await me(req);
@@ -267,10 +267,15 @@ app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
 
 // ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
 const fs = require("fs");
-const INDEX = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8").replace(/\{\{BASE\}\}/g, BASE);
-app.get(["/", "/index.html"], (req, res) => res.type("html").set("Cache-Control", "public, max-age=300").send(INDEX));
+// Cada página es su propio archivo en public/ con su propia URL (ver README)
+const ROUTES = { "/": "index", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil" };
+const PAGES = {};
+for (const [url, file] of Object.entries(ROUTES)) {
+  PAGES[url] = fs.readFileSync(path.join(__dirname, "public", file + ".html"), "utf8").replace(/\{\{BASE\}\}/g, BASE);
+  app.get(url === "/" ? ["/", "/index.html"] : [url, url + ".html"], (req, res) => res.type("html").set("Cache-Control", "public, max-age=300").send(PAGES[url]));
+}
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\n\nSitemap: ${BASE}/sitemap.xml\n`));
-app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${BASE}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>\n`));
+app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${Object.keys(ROUTES).filter((u) => u !== "/perfil").map((u) => `  <url><loc>${BASE}${u}</loc><changefreq>${u === "/" || u === "/noticias" ? "daily" : "weekly"}</changefreq><priority>${u === "/" ? "1.0" : "0.7"}</priority></url>`).join("\n")}\n</urlset>\n`));
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h", setHeaders: (res, f) => { if (/[\\/]assets[\\/]/.test(f)) res.set("Cache-Control", "public, max-age=86400"); } }));
 // Página 404 propia (la API responde JSON)
 app.use((req, res) => (req.path.startsWith("/api/") ? res.status(404).json({ error: "No existe" }) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));

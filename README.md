@@ -38,3 +38,27 @@
 ## Avatares, staff por rangos y clasificación
 - `SKIN_COLUMN` (por defecto `skin`): columna de la tabla `player` con el id de skin. `SKIN_URL` (opcional): imagen de cada skin, con `{id}` (ej. `/assets/skins/{id}.png` si las alojas tú). Si la imagen falla, se muestra la inicial.
 - Staff agrupado por rango con avatar y "última vez"; nueva sección Clasificación (`/api/top`); noticias y fotos paginadas (12 por página).
+
+## Estructura por páginas
+Cada sección es una página independiente (archivo + URL propia), ya no van todas dentro de `index.html`:
+
+| URL | HTML | JS de la página |
+|---|---|---|
+| `/` | `public/index.html` | `public/assets/js/pages/index.js` |
+| `/noticias` | `public/noticias.html` | `public/assets/js/pages/noticias.js` |
+| `/actualizaciones` | `public/actualizaciones.html` | `public/assets/js/pages/actualizaciones.js` |
+| `/faq` | `public/faq.html` | `public/assets/js/pages/faq.js` |
+| `/fotos` | `public/fotos.html` | `public/assets/js/pages/fotos.js` |
+| `/staff` | `public/staff.html` | `public/assets/js/pages/staff.js` |
+| `/solicitar-staff` | `public/solicitar-staff.html` | `public/assets/js/pages/solicitar-staff.js` |
+| `/clasificacion` | `public/clasificacion.html` | `public/assets/js/pages/clasificacion.js` |
+| `/reglas` | `public/reglas.html` | `public/assets/js/pages/reglas.js` |
+| `/testimonios` | `public/testimonios.html` | `public/assets/js/pages/testimonios.js` |
+| `/contacto` | `public/contacto.html` | `public/assets/js/pages/contacto.js` |
+| `/comunidad` | `public/comunidad.html` | `public/assets/js/pages/comunidad.js` |
+| `/perfil` | `public/perfil.html` | `public/assets/js/pages/perfil.js` |
+
+- Lo compartido está en `public/assets/css/style.css`, `public/assets/js/core.js` (API, login, tema/idioma, menú) y `public/assets/js/sprite.js` (íconos).
+- Para editar una página toca solo su `.html` y su `.js`. Si cambias CSS/JS, sube el `?v=1` de los `<link>`/`<script>` para evitar caché.
+- Para crear una página nueva: copia un `.html`, cambia `data-v`, título y script; agrégala a `NAV` y `R` en `core.js` y a `ROUTES` en `server.js`.
+- Los enlaces viejos tipo `/#fotos` redirigen solos a `/fotos`. Discord vuelve a `/perfil?discord=...`.
