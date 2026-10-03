@@ -25,8 +25,8 @@ const EN={"Noticias":"News","Jugar ahora":"Play now","Últimas Noticias":"Latest
 "Sin conexión. Algunas cosas no cargarán.":"You're offline. Some things won't load.","Algo salió mal. Inténtalo de nuevo.":"Something went wrong. Please try again.","Inicio":"Home"};
 const t=s=>L==="en"&&EN[s]||s;
 const ic=(n,c)=>`<svg class="ic${c?" "+c:""}" aria-hidden="true" focusable="false"><use href="#i-${n}"/></svg>`;
-const NAV=[["news","inicio","Inicio"],["feed","comunidad","Feed"],["notif","campana","Notificaciones"],["todas","noticias","Noticias"],["update","actualizaciones","Actualizaciones"],["faq","faq","FAQs"],["fotos","fotos","Fotos"],["staff","staff_equipo","Staff"],["solicitar","solicitar_staff","Solicitar ser Staff"],["top","clasificacion","Clasificación"],["reglas","reglas","Reglas"],["testimonios","testimonios","Testimonios"],["contacto","contacto","Contacto"],["comunidad","comunidad","Comunidad"],["perfil","usuario_perfil","Mi perfil"]];
-const R={"news": "/", "feed": "/feed", "notif": "/notificaciones", "todas": "/noticias", "update": "/actualizaciones", "faq": "/faq", "fotos": "/fotos", "staff": "/staff", "solicitar": "/solicitar-staff", "top": "/clasificacion", "reglas": "/reglas", "testimonios": "/testimonios", "contacto": "/contacto", "comunidad": "/comunidad", "perfil": "/perfil"};
+const NAV=[["news","inicio","Inicio"],["feed","comunidad","Feed"],["amigos","etiquetar","Amigos"],["notif","campana","Notificaciones"],["todas","noticias","Noticias"],["update","actualizaciones","Actualizaciones"],["faq","faq","FAQs"],["fotos","fotos","Fotos"],["staff","staff_equipo","Staff"],["solicitar","solicitar_staff","Solicitar ser Staff"],["top","clasificacion","Clasificación"],["reglas","reglas","Reglas"],["testimonios","testimonios","Testimonios"],["contacto","contacto","Contacto"],["comunidad","comunidad","Comunidad"],["perfil","usuario_perfil","Mi perfil"]];
+const R={"news": "/", "feed": "/feed", "amigos": "/amigos", "notif": "/notificaciones", "todas": "/noticias", "update": "/actualizaciones", "faq": "/faq", "fotos": "/fotos", "staff": "/staff", "solicitar": "/solicitar-staff", "top": "/clasificacion", "reglas": "/reglas", "testimonios": "/testimonios", "contacto": "/contacto", "comunidad": "/comunidad", "perfil": "/perfil"};
 const RANGOS=["Ciudadano","Ayudante","Moderador","Operador","Administrador","Desarrollador"],TIT={story:"Historia",news:"Noticias",update:"Actualizaciones",faq:"Preguntas frecuentes",photo:"Fotos",rules:"Reglas",review:"Testimonios"};
 const DISCORD="https://discord.gg/QU7YWerPfV",TIKTOK="https://www.tiktok.com/@sampcity.oficial";
 const SV_HOST="sv.sampcity.app",SV_PORT="7781";
@@ -44,7 +44,7 @@ let U=null,INFO={},view=document.body.dataset.v||"news",tok=0,CF="";
 const fecha=s=>new Date(String(s).replace(" ","T")).toLocaleDateString(L==="en"?"en-US":"es-CO",{day:"numeric",month:"short",year:"numeric"}),horas=s=>Math.floor(Number(s||0)/3600)+" h",money=n=>"$"+Number(n||0).toLocaleString(L==="en"?"en-US":"es-CO");
 const NB='<i class="nb" hidden></i>',link=(v,i,x)=>`<a href="${R[v]}" data-v="${v}"><span>${ic(i)}</span>${t(x)}${v==="notif"?NB:""}</a>`;
 function nav(){$("#menu").innerHTML=NAV.map(n=>link(...n)).join("");
- const G=[["SampCity",["news","feed","notif","perfil","staff","solicitar","top","reglas","faq"]],["Comunidad",["todas","update","fotos","testimonios","comunidad","contacto"]]];$("#drn").innerHTML=G.map(g=>`<h5>${t(g[0]).toUpperCase()}</h5>`+g[1].map(v=>{const n=NAV.find(x=>x[0]===v);return `<a href="${R[v]}" data-v="${v}" onclick="cd()">${t(v==="news"?"Inicio":v==="staff"?"Equipo":n[2])}${v==="notif"?NB:""}</a>`}).join("")).join("");
+ const G=[["SampCity",["news","feed","amigos","notif","perfil","staff","solicitar","top","reglas","faq"]],["Comunidad",["todas","update","fotos","testimonios","comunidad","contacto"]]];$("#drn").innerHTML=G.map(g=>`<h5>${t(g[0]).toUpperCase()}</h5>`+g[1].map(v=>{const n=NAV.find(x=>x[0]===v);return `<a href="${R[v]}" data-v="${v}" onclick="cd()">${t(v==="news"?"Inicio":v==="staff"?"Equipo":n[2])}${v==="notif"?NB:""}</a>`}).join("")).join("");
 
  document.querySelectorAll("[data-v]").forEach(a=>a.classList.toggle("on",a.dataset.v===view));paintBadge()}
 function modal(h,big){$("#modc").innerHTML=h;$("#mod").classList.toggle("big",!!big);$("#mod").classList.add("on");($("#modc input,#modc .btn")||{focus(){}}).focus()}function cerrar(){$("#mod").classList.remove("on")}
@@ -245,3 +245,20 @@ document.addEventListener("input",e=>{const el=e.target;if(!el.matches||!el.matc
   document.body.appendChild(b)},250)});
 document.addEventListener("click",e=>{if(!e.target.closest("#mnl"))mnClose()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")mnClose()});
+
+// ---- Amigos (compartido): botones de solicitud, estado vacío del feed y avisos ----
+Object.assign(EN,{"Amigos":"Friends","Agregar a amigos":"Add friend","Solicitud enviada":"Request sent","Cancelar solicitud":"Cancel request","Confirmar":"Confirm","Eliminar de amigos":"Remove friend","Tu feed está vacío":"Your feed is empty","Explora perfiles y agrega personas para ver sus publicaciones aquí.":"Explore profiles and add people to see their posts here.","Buscar amigos":"Find friends","Tus amigos aún no han publicado nada.":"Your friends haven't posted anything yet.","Buscar más amigos":"Find more friends","Solicitud de amistad":"Friend request","Solicitudes de amistad":"Friend requests","Tienes {n} solicitud(es) de amistad pendiente(s)":"You have {n} pending friend request(s)","Ver":"View"});
+const frActs=(n,st)=>{const e=esc(n);return st==="friends"?`<button class="btn s" type="button" onclick="frMenu('${e}')">✓ ${t("Amigos")}</button>`:st==="sent"?`<button class="btn s" type="button" onclick="frDo('${e}','del')">${t("Cancelar solicitud")}</button>`:st==="received"?`<button class="btn p s" type="button" onclick="frDo('${e}','acc')">${t("Confirmar")}</button><button class="btn s" type="button" onclick="frDo('${e}','del')">${t("Eliminar")}</button>`:`<button class="btn p s" type="button" onclick="frDo('${e}','add')">+ ${t("Agregar a amigos")}</button>`};
+function frMenu(n){modal(`<h3>${nom(n)}</h3><div class="mm"><button class="btn" onclick="cerrar();frDo('${esc(n)}','del')">${t("Eliminar de amigos")}</button><button class="btn" onclick="cerrar()">${t("Cancelar")}</button></div>`)}
+async function frDo(n,act){
+ if(!U)return login();
+ const boxes=[...document.querySelectorAll(".fra")].filter(b=>b.dataset.n===n);boxes.forEach(b=>b.querySelectorAll("button").forEach(x=>x.disabled=true));
+ const r=await api(act==="del"?"/friends/"+encodeURIComponent(n):"/friends/"+(act==="acc"?"accept":"request"),{method:act==="del"?"DELETE":"POST",body:{name:n}});
+ if(!r.ok){boxes.forEach(b=>b.querySelectorAll("button").forEach(x=>x.disabled=false));return toast(r.d.error||"Error")}
+ const st=r.d.state;boxes.forEach(b=>b.innerHTML=frActs(n,st));
+ if(st==="sent")toast(t("Solicitud enviada"));
+ await init(); // actualiza contadores (amigos, solicitudes, avisos)
+ if(boxes.some(b=>"rl" in b.dataset))show()} // las listas que cambian de contenido se vuelven a dibujar
+const frEmpty=()=>`<section class="card fre"><div class="fri">${ic("etiquetar")}</div><h3>${t("Tu feed está vacío")}</h3><p class="m">${t("Explora perfiles y agrega personas para ver sus publicaciones aquí.")}</p><a class="btn p" href="/amigos">${t("Buscar amigos")}</a></section>`;
+const frNone=()=>`<section class="card fre"><p class="m">${t("Tus amigos aún no han publicado nada.")}</p><a class="btn" href="/amigos">${t("Buscar más amigos")}</a></section>`;
+const frBanner=()=>U&&U.freq>0?`<a class="card frb" href="/amigos"><span>${ic("etiquetar")} ${t("Solicitudes de amistad")}</span><b>${U.freq}</b></a>`:"";
