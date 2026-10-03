@@ -204,3 +204,5 @@ body.nosc{overflow:hidden}
 .sv-c{position:absolute;left:0;right:0;bottom:0;z-index:4;background:var(--card);color:var(--t);border-radius:1rem 1rem 0 0;max-height:70%;min-height:40%;display:none;flex-direction:column;--t:#f6f1f2}.sv-c.on{display:flex}
 .sv-ch{display:flex;justify-content:space-between;align-items:center;padding:.4rem .4rem .4rem .9rem;border-bottom:1px solid var(--b)}.sv-cl{flex:1;overflow:auto;padding:.7rem .9rem}.sv-cl .cmt{margin-bottom:.6rem;overflow-wrap:anywhere}
 .sv-ci{display:flex;gap:.5rem;padding:.6rem .8rem calc(.6rem + env(safe-area-inset-bottom));border-top:1px solid var(--b)}.sv-ci input{flex:1;margin:0}
+
+.dt small{color:var(--m)}.dt:hover small{text-decoration:underline}
