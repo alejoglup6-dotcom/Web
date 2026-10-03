@@ -391,7 +391,7 @@ app.get("/api/user/:name", async (req, res) => {
   if (!r) return res.status(404).json({ error: "No existe" });
   const me_ = sessionId(req), fids = await friendIds(r.id);
   const fstate = !me_ ? "none" : String(me_) === String(r.id) ? "self" : (await friendStates(me_, [r.id])).get(Number(r.id)) || "none";
-  const fl = fids.length ? await q(`SELECT name, ${SKIN_COL} AS skin FROM player WHERE id IN (?) ORDER BY connected DESC, name LIMIT 8`, [fids]) : [];
+  const fl = fids.length ? await q(`SELECT name, ${SKIN_COL} AS skin, connected FROM player WHERE id IN (?) ORDER BY connected DESC, name LIMIT 30`, [fids]) : [];
   const posts = (await q("SELECT COUNT(*) AS n FROM web_posts WHERE author = ? AND type = 'post'", [r.name]))[0].n;
   const likes = (await q("SELECT COUNT(*) AS n FROM web_likes l JOIN web_posts p ON p.id = l.post_id WHERE p.author = ? AND p.type = 'post'", [r.name]))[0].n;
   res.json({ name: r.name, skin: r.skin, rango: ADMIN_LEVELS[r.admin_level] || "Ciudadano", level: r.level, rep: r.rep, time_playing: r.time_playing, reg_date: r.reg_date, last_connection: r.last_connection, connected: r.connected, posts: Number(posts), likes: Number(likes), friends: fids.length, fstate, fl }); // sin dinero, teléfono ni datos privados
