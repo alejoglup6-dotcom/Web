@@ -16,6 +16,7 @@ const MIN_POST = Number(E.POST_MIN_LEVEL) || 4;
 const SKIN_COL = /^\w{1,40}$/.test(E.SKIN_COLUMN || "") ? E.SKIN_COLUMN : "skin"; // columna de `player` con el id de skin
 const SKIN_URL = E.SKIN_URL || "https://assets.open.mp/assets/images/skins/{id}.png"; // {id} se reemplaza por la skin
 const CH = 256 * 1024, IMG_MAX = 1200 * 1024, VID_MAX = (Number(E.VIDEO_MAX_MB) || 25) * 1048576, VID_SECS = 15.5; // medios en trozos de 256 KB (evita el límite de paquete de MySQL)
+const REEL_MAX = (Number(E.REEL_MAX_MB) || 60) * 1048576, REEL_SECS = Number(E.REEL_MAX_SECS) || 90; // reels: videos más largos (kind = "rel")
 const ADMIN_LEVELS = ["Ciudadano", "Ayudante", "Moderador", "Operador", "Administrador", "Desarrollador"];
 
 const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: 5, ssl: E.MYSQL_SSL === "1" ? { minVersion: "TLSv1.2", rejectUnauthorized: E.MYSQL_SSL_STRICT !== "0" } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
@@ -225,15 +226,17 @@ async function friendStates(uid, ids) { // Map id → "friends" | "sent" (le env
   }
   return m;
 }
-async function mutualCounts(mine, ids) { // amigos en común entre yo (mine = ids de mis amigos) y cada jugador de ids
-  const out = new Map(ids.map((i) => [Number(i), 0])), set = new Set(mine);
-  if (!ids.length || !set.size) return out;
-  for (const r of await q("SELECT a, b FROM web_friends WHERE status = 1 AND (a IN (?) OR b IN (?))", [ids, ids])) {
-    const a = Number(r.a), b = Number(r.b);
-    if (out.has(a) && set.has(b)) out.set(a, out.get(a) + 1);
-    if (out.has(b) && set.has(a)) out.set(b, out.get(b) + 1);
-  }
-  return out;
+async function mutualCounts(mine, ids, samples) { // amigos en común entre yo (mine = ids de mis amigos) y cada jugador de ids
+  const out = new Map(ids.map((i) => [Number(i), 0])), set = new Set(mine), smp = new Map();
+  if (!ids.length || !set.size) return samples ? { out, smp } : out;
+  const add = (x, y) => { if (out.has(x) && set.has(y)) { out.set(x, out.get(x) + 1); const l = smp.get(x) || []; if (l.length < 2) l.push(y); smp.set(x, l); } };
+  for (const r of await q("SELECT a, b FROM web_friends WHERE status = 1 AND (a IN (?) OR b IN (?))", [ids, ids])) { add(Number(r.a), Number(r.b)); add(Number(r.b), Number(r.a)); }
+  return samples ? { out, smp } : out;
+}
+async function mutualFaces(smp) { // id → [{ name, skin }] de hasta 2 amigos en común (las caritas de la lista de solicitudes)
+  const ids = [...new Set([...smp.values()].flat())], m = new Map();
+  if (ids.length) for (const r of await q(`SELECT id, name, ${SKIN_COL} AS skin FROM player WHERE id IN (?)`, [ids])) m.set(Number(r.id), { name: r.name, skin: r.skin });
+  return (id) => (smp.get(Number(id)) || []).map((x) => m.get(x)).filter(Boolean);
 }
 const target = async (req, res, u) => { // jugador indicado en el cuerpo/ruta (no puedes ser tú mismo)
   const n = str(req.body?.name ?? req.params?.name);
@@ -283,14 +286,16 @@ app.get("/api/friends", async (req, res) => { // mis amigos
 app.get("/api/friends/requests", async (req, res) => { // solicitudes que me enviaron
   const id = sessionId(req); if (!id) return res.status(401).json({ error: "Inicia sesión" });
   const rows = await q(`SELECT p.id, p.name, p.${SKIN_COL} AS skin, f.created_at FROM web_friends f JOIN player p ON p.id = f.a WHERE f.b = ? AND f.status = 0 ORDER BY f.created_at DESC LIMIT 50`, [id]);
-  const mc = await mutualCounts(await friendIds(id), rows.map((r) => Number(r.id)));
-  res.json(rows.map((r) => ({ name: r.name, skin: r.skin, created_at: r.created_at, mutual: mc.get(Number(r.id)) || 0 })));
+  const { out: mc, smp } = await mutualCounts(await friendIds(id), rows.map((r) => Number(r.id)), true), faces = await mutualFaces(smp);
+  res.json(rows.map((r) => ({ name: r.name, skin: r.skin, created_at: r.created_at, mutual: mc.get(Number(r.id)) || 0, faces: faces(r.id) })));
 });
 app.get("/api/friends/suggestions", async (req, res) => { // jugadores recomendados: con amigos en común primero, luego los más activos
   const id = sessionId(req); if (!id) return res.status(401).json({ error: "Inicia sesión" });
   const pool = await q(`SELECT p.id, p.name, p.${SKIN_COL} AS skin, p.connected, p.level FROM player p WHERE p.id <> ? AND p.id NOT IN (SELECT IF(a = ?, b, a) FROM web_friends WHERE (a = ? OR b = ?) AND (status = 1 OR b = ?)) ORDER BY p.connected DESC, p.last_connection DESC, p.id DESC LIMIT 100`, [id, id, id, id, id]);
-  const ids = pool.map((r) => Number(r.id)), [mc, st] = await Promise.all([mutualCounts(await friendIds(id), ids), friendStates(id, ids)]);
-  res.json(pool.map((r) => ({ name: r.name, skin: r.skin, connected: r.connected, level: r.level, mutual: mc.get(Number(r.id)) || 0, state: st.get(Number(r.id)) || "none" })).sort((x, y) => y.mutual - x.mutual || Number(y.connected) - Number(x.connected)).slice(0, 30));
+  const ids = pool.map((r) => Number(r.id)), [{ out: mc, smp }, st] = await Promise.all([mutualCounts(await friendIds(id), ids, true), friendStates(id, ids)]);
+  const list = pool.map((r) => ({ id: r.id, name: r.name, skin: r.skin, connected: r.connected, level: r.level, mutual: mc.get(Number(r.id)) || 0, state: st.get(Number(r.id)) || "none" })).sort((x, y) => y.mutual - x.mutual || Number(y.connected) - Number(x.connected)).slice(0, 30);
+  const faces = await mutualFaces(smp);
+  res.json(list.map(({ id: pId, ...r }) => ({ ...r, faces: faces(pId) })));
 });
 app.get("/api/friends/search", async (req, res) => { // buscar jugadores para agregarlos
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
@@ -304,7 +309,7 @@ app.get("/api/friends/search", async (req, res) => { // buscar jugadores para ag
 // ---- Estado público (solo cifras, sin datos de cuentas) ----
 app.get("/api/info", async (req, res) => {
   const r = (await q("SELECT COUNT(*) AS total, COALESCE(SUM(connected), 0) AS online FROM player"))[0];
-  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", skinUrl: SKIN_URL, videoMax: Math.round(VID_MAX / 1048576), turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
+  res.json({ total: Number(r.total), online: Number(r.online), ip: E.SERVER_IP || "", skinUrl: SKIN_URL, videoMax: Math.round(VID_MAX / 1048576), reelMax: Math.round(REEL_MAX / 1048576), reelSecs: REEL_SECS, turnstile: E.TURNSTILE_SECRET ? E.TURNSTILE_SITEKEY || "" : "" });
 });
 
 // ---- Staff (nombre y rango, nada más) ----
@@ -316,7 +321,7 @@ app.get("/api/top", async (req, res) => {
 });
 
 // ---- Noticias / actualizaciones / FAQ / reglas / fotos ----
-const TYPES = ["news", "update", "faq", "photo", "rules", "review", "post", "story"]; // post = publicaciones de los jugadores (muro) // review = testimonios (los publica el staff)
+const TYPES = ["news", "update", "faq", "photo", "rules", "review", "post", "story", "reel"]; // post = publicaciones de los jugadores (muro) // review = testimonios (los publica el staff)
 const staffOnly = async (req, res) => { const u = await me(req); if (!u || u.admin_level < MIN_POST) { res.status(403).json({ error: "No tienes permiso" }); return null; } return u; };
 app.get("/api/posts", async (req, res) => {
   const type = TYPES.includes(req.query.type) ? req.query.type : null, uid = sessionId(req) || 0;
@@ -344,6 +349,7 @@ app.post("/api/posts", async (req, res) => {
   const u = await staffOnly(req, res); if (!u) return;
   const type = str(req.body.type), title = str(req.body.title).trim(), body = str(req.body.body).trim();
   if (!TYPES.includes(type) || type === "story" || !title || !body) return res.status(400).json({ error: "Faltan datos" });
+  if (type === "reel") return res.status(400).json({ error: "Los reels se suben desde /reels" });
   if (type === "photo" && !/^https:\/\/[^\s"'<>]{4,500}$/.test(body)) return res.status(400).json({ error: "El enlace de la foto debe empezar con https://" });
   const ins = await q("INSERT INTO web_posts (type, title, body, author) VALUES (?, ?, ?, ?)", [type, title.slice(0, 120), body.slice(0, 4000), u.name]);
   if (type === "news" || type === "update") try { await q("INSERT INTO web_notifs (player_id, actor_id, type, post_id, body) SELECT id, ?, ?, ?, ? FROM player WHERE id <> ? ORDER BY id DESC LIMIT ?", [u.id, type, ins.insertId, title.slice(0, 120), u.id, BCAST]); } catch (e) { console.log("[notif]", e.message); }
@@ -360,7 +366,7 @@ app.delete("/api/posts/:id", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   const id = pid(req.params.id), p = (await q("SELECT body, type, author FROM web_posts WHERE id = ?", [id]))[0];
   if (!p) return res.status(404).json({ error: "No existe" });
-  if (u.admin_level < MIN_POST && !((p.type === "post" || p.type === "story") && p.author === u.name)) return res.status(403).json({ error: "No tienes permiso" }); // el staff borra cualquiera; cada jugador, solo lo suyo
+  if (u.admin_level < MIN_POST && !((p.type === "post" || p.type === "story" || p.type === "reel") && p.author === u.name)) return res.status(403).json({ error: "No tienes permiso" }); // el staff borra cualquiera; cada jugador, solo lo suyo
   const im = /^\/img\/(\d+)$/.exec(p?.body || "");
   if (im) await q("DELETE FROM web_images WHERE id = ?", [im[1]]);
   await removePosts([id]);
@@ -393,8 +399,9 @@ app.get("/api/user/:name", async (req, res) => {
   const fstate = !me_ ? "none" : String(me_) === String(r.id) ? "self" : (await friendStates(me_, [r.id])).get(Number(r.id)) || "none";
   const fl = fids.length ? await q(`SELECT name, ${SKIN_COL} AS skin, connected FROM player WHERE id IN (?) ORDER BY connected DESC, name LIMIT 30`, [fids]) : [];
   const posts = (await q("SELECT COUNT(*) AS n FROM web_posts WHERE author = ? AND type = 'post'", [r.name]))[0].n;
+  const reels = (await q("SELECT COUNT(*) AS n FROM web_posts WHERE author = ? AND type = 'reel'", [r.name]))[0].n;
   const likes = (await q("SELECT COUNT(*) AS n FROM web_likes l JOIN web_posts p ON p.id = l.post_id WHERE p.author = ? AND p.type = 'post'", [r.name]))[0].n;
-  res.json({ name: r.name, skin: r.skin, rango: ADMIN_LEVELS[r.admin_level] || "Ciudadano", level: r.level, rep: r.rep, time_playing: r.time_playing, reg_date: r.reg_date, last_connection: r.last_connection, connected: r.connected, posts: Number(posts), likes: Number(likes), friends: fids.length, fstate, fl }); // sin dinero, teléfono ni datos privados
+  res.json({ name: r.name, skin: r.skin, rango: ADMIN_LEVELS[r.admin_level] || "Ciudadano", level: r.level, rep: r.rep, time_playing: r.time_playing, reg_date: r.reg_date, last_connection: r.last_connection, connected: r.connected, posts: Number(posts), reels: Number(reels), likes: Number(likes), friends: fids.length, fstate, fl }); // sin dinero, teléfono ni datos privados
 });
 // ---- Contacto: lo envía cualquiera, solo el staff lo lee ----
 app.post("/api/contact", async (req, res) => {
@@ -493,7 +500,7 @@ const delMedia = async (ids) => { ids = ids.filter(Boolean); if (!ids.length) re
 async function removePosts(ids) { // borra publicaciones con sus me gusta, comentarios, etiquetas y medios
   if (!ids.length) return;
   const ms = await q("SELECT m.id, m.thumb FROM web_post_media pm JOIN web_media m ON m.id = pm.media_id WHERE pm.post_id IN (?)", [ids]);
-  for (const t of ["web_post_media", "web_tags", "web_likes", "web_comments", "web_notifs"]) await q(`DELETE FROM ${t} WHERE post_id IN (?)`, [ids]);
+  for (const t of ["web_post_media", "web_tags", "web_likes", "web_comments", "web_notifs", "web_saved"]) await q(`DELETE FROM ${t} WHERE post_id IN (?)`, [ids]);
   await q("DELETE FROM web_posts WHERE id IN (?)", [ids]);
   await delMedia(ms.flatMap((m) => [m.id, m.thumb]));
 }
@@ -510,19 +517,19 @@ async function cleanup() { // historias vencidas (24 h) y medios huérfanos
     await delMedia((await q("SELECT m.id FROM web_media m LEFT JOIN web_post_media pm ON pm.media_id = m.id LEFT JOIN web_media v ON v.thumb = m.id WHERE m.created_at < NOW() - INTERVAL 2 HOUR AND pm.media_id IS NULL AND v.id IS NULL")).map((r) => r.id));
   } catch (e) { console.log("[cleanup]", e.message); }
 }
-app.post("/api/media", express.raw({ type: () => true, limit: VID_MAX }), async (req, res) => {
+app.post("/api/media", express.raw({ type: () => true, limit: Math.max(VID_MAX, REEL_MAX) }), async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   if (req.headers["x-sc"] !== "1") return res.status(403).json({ error: "Petición no válida" });
   if (!hit("m|" + u.id, 20, 600000)) return res.status(429).json({ error: "Demasiadas subidas, espera unos minutos" });
-  const kind = req.query.kind === "vid" ? "vid" : "img", mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase(), buf = req.body;
+  const kind = req.query.kind === "vid" ? "vid" : req.query.kind === "rel" ? "rel" : "img", mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase(), buf = req.body;
   if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: "Archivo vacío" });
   let thumb = null;
   if (kind === "img") { if (!imgOk(mime, buf) || buf.length > IMG_MAX) return res.status(400).json({ error: "Imagen no válida o muy pesada" }); }
   else {
-    const mp = mime === "video/mp4" || mime === "video/quicktime", wb = mime === "video/webm";
-    if ((!mp && !wb) || buf.length > VID_MAX || (mp && buf.toString("ascii", 4, 8) !== "ftyp")) return res.status(400).json({ error: "Video no válido. Usa MP4 de hasta " + Math.round(VID_MAX / 1048576) + " MB" });
+    const mp = mime === "video/mp4" || mime === "video/quicktime", wb = mime === "video/webm", rel = kind === "rel", mx = rel ? REEL_MAX : VID_MAX, secs = rel ? REEL_SECS : VID_SECS;
+    if ((!mp && !wb) || buf.length > mx || (mp && buf.toString("ascii", 4, 8) !== "ftyp")) return res.status(400).json({ error: "Video no válido. Usa MP4 de hasta " + Math.round(mx / 1048576) + " MB" });
     const d = mp ? mp4Dur(buf) : webmDur(buf);
-    if (d == null || d > VID_SECS) return res.status(400).json({ error: d == null ? "No pude leer la duración del video. Usa un MP4." : "El video debe durar máximo 15 segundos" });
+    if (d == null || d > secs + 0.5) return res.status(400).json({ error: d == null ? "No pude leer la duración del video. Usa un MP4." : `El video debe durar máximo ${rel ? REEL_SECS : 15} segundos` });
     thumb = pid(req.query.thumb);
     if (!thumb || !(await q("SELECT id FROM web_media WHERE id = ? AND owner = ? AND kind = 'img'", [thumb, u.id])).length) return res.status(400).json({ error: "Falta la miniatura del video" });
   }
@@ -551,10 +558,49 @@ app.post("/api/stories", async (req, res) => {
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   const mid = pid(req.body.media), cap = str(req.body.body).trim().slice(0, 200);
   if (!hit("s|" + u.id, 10, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
-  if (!mid || !(await q("SELECT m.id FROM web_media m WHERE m.id = ? AND m.owner = ? AND NOT EXISTS (SELECT 1 FROM web_post_media x WHERE x.media_id = m.id)", [mid, u.id])).length) return res.status(400).json({ error: "Sube primero la foto o el video" });
+  if (!mid || !(await q("SELECT m.id FROM web_media m WHERE m.id = ? AND m.owner = ? AND m.kind IN ('img', 'vid') AND NOT EXISTS (SELECT 1 FROM web_post_media x WHERE x.media_id = m.id)", [mid, u.id])).length) return res.status(400).json({ error: "Sube primero la foto o el video" });
   const r = await q("INSERT INTO web_posts (type, title, body, author) VALUES ('story', '', ?, ?)", [cap, u.name]);
   await q("INSERT INTO web_post_media (post_id, media_id, pos) VALUES (?, ?, 0)", [r.insertId, mid]);
   res.json({ ok: true, id: r.insertId });
+});
+// ---- Reels: videos de la comunidad (kind = "rel", hasta REEL_MAX_SECS s), con me gusta, comentarios y guardados ----
+const REEL_Q = (where) => `SELECT p.id, p.body, p.author, p.created_at, (SELECT ${SKIN_COL} FROM player WHERE name = p.author LIMIT 1) AS skin, (SELECT id FROM player WHERE name = p.author LIMIT 1) AS aid, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id) AS likes, (SELECT COUNT(*) FROM web_comments c WHERE c.post_id = p.id) AS comments, (SELECT COUNT(*) FROM web_saved s WHERE s.post_id = p.id) AS saves, (SELECT COUNT(*) FROM web_likes l WHERE l.post_id = p.id AND l.player_id = ?) AS mine, (SELECT COUNT(*) FROM web_saved s WHERE s.post_id = p.id AND s.player_id = ?) AS saved FROM web_posts p WHERE p.type = 'reel' ${where}`;
+app.get("/api/reels", async (req, res) => { // ?before=id (siguiente página) · ?author=Nombre · ?saved=1 (mis guardados) · ?start=id (abre ese primero)
+  const uid = sessionId(req) || 0, before = pid(req.query.before), start = pid(req.query.start), au = str(req.query.author), per = Math.min(24, Math.max(1, Number(req.query.n) || 8));
+  const where = [], wp = [uid, uid];
+  if (req.query.saved === "1") { if (!uid) return res.status(401).json({ error: "Inicia sesión" }); where.push("AND p.id IN (SELECT post_id FROM web_saved WHERE player_id = ?)"); wp.push(uid); }
+  if (/^\w{1,24}$/.test(au)) { where.push("AND p.author = ?"); wp.push(au); }
+  if (before) { where.push("AND p.id < ?"); wp.push(before); }
+  if (start) { where.push("AND p.id <> ?"); wp.push(start); }
+  let rows = await q(REEL_Q(where.join(" ")) + " ORDER BY p.id DESC LIMIT ?", [...wp, per + 1]);
+  const more = rows.length > per; rows = rows.slice(0, per);
+  if (start && !before) rows = [...(await q(REEL_Q("AND p.id = ?"), [uid, uid, start])), ...rows];
+  const st = uid ? await friendStates(uid, [...new Set(rows.map((r) => Number(r.aid)).filter(Boolean))]) : new Map();
+  const out = (await attach(rows)).map(({ aid, ...r }) => ({ ...r, fstate: !uid ? "none" : String(aid) === String(uid) ? "self" : st.get(Number(aid)) || "none" }));
+  res.json({ items: out, more });
+});
+app.post("/api/reels", async (req, res) => {
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  const mid = pid(req.body.media), cap = str(req.body.body).trim().slice(0, 500);
+  if (!hit("r|" + u.id, 5, 600000)) return res.status(429).json({ error: "Vas muy rápido, espera unos minutos" });
+  if (!mid || !(await q("SELECT m.id FROM web_media m WHERE m.id = ? AND m.owner = ? AND m.kind = 'rel' AND NOT EXISTS (SELECT 1 FROM web_post_media x WHERE x.media_id = m.id)", [mid, u.id])).length) return res.status(400).json({ error: "Sube primero el video" });
+  const r = await q("INSERT INTO web_posts (type, title, body, author) VALUES ('reel', '', ?, ?)", [cap, u.name]);
+  await q("INSERT INTO web_post_media (post_id, media_id, pos) VALUES (?, ?, 0)", [r.insertId, mid]);
+  for (const m of await mentioned(cap, u.id)) await notify(m.id, u, "mention", r.insertId, cap);
+  res.json({ ok: true, id: r.insertId });
+});
+app.post("/api/posts/:id/save", async (req, res) => { // guardar / quitar de guardados
+  const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
+  const id = pid(req.params.id);
+  if (!(await q("SELECT 1 FROM web_posts WHERE id = ?", [id])).length) return res.status(404).json({ error: "No existe" });
+  const del = await q("DELETE FROM web_saved WHERE post_id = ? AND player_id = ?", [id, u.id]);
+  if (!del.affectedRows) await q("INSERT IGNORE INTO web_saved (post_id, player_id) VALUES (?, ?)", [id, u.id]);
+  res.json({ saved: !del.affectedRows, saves: Number((await q("SELECT COUNT(*) AS n FROM web_saved WHERE post_id = ?", [id]))[0].n) });
+});
+app.get("/api/user/:name/photos", async (req, res) => { // fotos de las publicaciones de un jugador (pestaña Fotos del perfil)
+  const n = str(req.params.name);
+  if (!/^\w{1,24}$/.test(n)) return res.json([]);
+  res.json(await q("SELECT pm.post_id, m.id FROM web_posts p JOIN web_post_media pm ON pm.post_id = p.id JOIN web_media m ON m.id = pm.media_id WHERE p.author = ? AND p.type = 'post' AND m.kind = 'img' ORDER BY p.id DESC, pm.pos LIMIT 60", [n]));
 });
 // ---- Buscar jugadores para etiquetar (solo nombre y skin) ----
 app.get("/api/users/search", async (req, res) => {
@@ -567,7 +613,7 @@ app.get("/api/users/search", async (req, res) => {
 // ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
 const fs = require("fs");
 // Cada página es su propio archivo en public/ con su propia URL (ver README)
-const ROUTES = { "/": "index", "/feed": "feed", "/amigos": "amigos", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil", "/notificaciones": "notificaciones" };
+const ROUTES = { "/": "index", "/reels": "reels", "/marketplace": "marketplace", "/feed": "feed", "/amigos": "amigos", "/noticias": "noticias", "/actualizaciones": "actualizaciones", "/faq": "faq", "/fotos": "fotos", "/staff": "staff", "/solicitar-staff": "solicitar-staff", "/clasificacion": "clasificacion", "/reglas": "reglas", "/testimonios": "testimonios", "/contacto": "contacto", "/comunidad": "comunidad", "/perfil": "perfil", "/notificaciones": "notificaciones" };
 const PAGES = {}, VER = Date.now().toString(36); // la versión cambia en cada arranque: el navegador siempre baja el CSS/JS nuevo
 const USER_PAGE = fs.readFileSync(path.join(__dirname, "public", "usuario.html"), "utf8").replace(/\?v=1/g, "?v=" + VER);
 app.get("/u/:name", (req, res) => (/^\w{1,24}$/.test(req.params.name) ? res.type("html").set("Cache-Control", "no-cache").send(USER_PAGE) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
@@ -583,10 +629,10 @@ app.get("/p/:id(\\d+)", async (req, res) => { // enlace propio de cada publicaci
   try {
     const p = (await q("SELECT p.id, p.type, p.author, p.body FROM web_posts p WHERE p.id = ? " + STORY_LIVE, [id]))[0];
     if (p) {
-      t = p.author.replace(/_/g, " ") + (p.type === "story" ? " · Historia" : "");
+      t = p.author.replace(/_/g, " ") + (p.type === "story" ? " · Historia" : p.type === "reel" ? " · Reel" : "");
       if (p.body && p.type !== "photo") d = p.body.replace(/\s+/g, " ").slice(0, 160);
       const m = (await q("SELECT m.id, m.kind, m.thumb FROM web_post_media pm JOIN web_media m ON m.id = pm.media_id WHERE pm.post_id = ? ORDER BY pm.pos LIMIT 1", [id]))[0];
-      if (m) img = `${BASE}/media/${m.kind === "vid" ? m.thumb : m.id}`; else if (p.type === "photo" && /^\/img\/\d+$/.test(p.body)) img = BASE + p.body;
+      if (m) img = `${BASE}/media/${m.kind === "img" ? m.id : m.thumb}`; else if (p.type === "photo" && /^\/img\/\d+$/.test(p.body)) img = BASE + p.body;
     }
   } catch (e) { console.log("[p]", e.message); }
   res.type("html").set("Cache-Control", "no-cache").send(PUB_PAGE.replace(/\{\{OGTITLE\}\}/g, oe(t)).replace(/\{\{OGDESC\}\}/g, oe(d)).replace(/\{\{OGIMG\}\}/g, oe(img)).replace(/\{\{OGURL\}\}/g, oe(`${BASE}/p/${id}`)));
@@ -615,6 +661,7 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_post_media (post_id INT NOT NULL, media_id INT NOT NULL, pos TINYINT NOT NULL DEFAULT 0, PRIMARY KEY (post_id, media_id), KEY m (media_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_tags (post_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, PRIMARY KEY (post_id, player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_notifs (id INT AUTO_INCREMENT PRIMARY KEY, player_id INT NOT NULL, actor_id INT NOT NULL DEFAULT 0, type VARCHAR(12) NOT NULL, post_id INT NULL, body VARCHAR(160) NOT NULL DEFAULT '', seen TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY pl (player_id, id), KEY pu (player_id, seen), KEY po (post_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  await q("CREATE TABLE IF NOT EXISTS web_saved (post_id INT NOT NULL, player_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (post_id, player_id), KEY pl (player_id, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_friends (a INT NOT NULL, b INT NOT NULL, status TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (a, b), KEY b (b, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   setInterval(cleanup, 3600000).unref(); cleanup();
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
