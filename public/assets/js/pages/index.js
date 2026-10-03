@@ -5,14 +5,14 @@ const fbPost=p=>{(window.PS=window.PS||{})[p.id]=p;const mine=U&&(U.canPost||((p
 return `<article class="fbp"><div class="fbh">${skin(p.skin,p.author)}<div><a href="/u/${encodeURIComponent(p.author)}"><b>${esc(p.author.replace(/_/g," "))}</b></a>${tagsHtml(p)}${p.type==="post"?"":`<span class="tag">${t(TIT[p.type]||"")}</span>`}<br><a class="dt" href="/p/${p.id}"><small>${ago(p.created_at)}</small></a></div>${mine?`<button class="fbo" onclick="opc(${p.id})" aria-label="${t("Opciones")}">•••</button>`:""}</div>${p.title?`<h3>${esc(p.title)}</h3>`:""}${p.body?`<p>${linkM(p.body)}</p>`:""}${mediaHtml(p)}<div class="fba"><button class="${p.mine>0?"p":""}" id="l${p.id}" onclick="like(${p.id})" aria-label="Like">${ic("like")} <span>${p.likes}</span></button><button id="cb${p.id}" onclick="coms(${p.id})" aria-label="Comentarios">${ic("discord_comentarios")} <span>${p.comments}</span></button><button onclick="compartir(${p.id})" aria-label="${t("Compartir")}">${ic("compartir_vincular")}</button></div><div id="c${p.id}"></div></article>`};
 function opc(id){modal(`<div class="mm">${U.canPost?`<button class="btn" onclick="cerrar();editar(${id})">${t("Editar")}</button>`:""}<button class="btn" onclick="cerrar();borrar(${id})">${t("Eliminar")}</button><button class="btn" onclick="cerrar()">${t("Cerrar")}</button></div>`)}
 async function pg_home(){fbBody("home");await info();
-const[a,r]=await Promise.all([api("/posts?type=story"),api("/posts?type=feed&page="+PG)]);
+const[a,r]=await Promise.all([api("/posts?type=story&scope=friends"),api("/posts?type=feed&page="+PG)]);
 if(!r.ok)return fail(r.d.error,view);
 const more=r.d.length>12,l=r.d.slice(0,12),ip=SV_HOST+":"+SV_PORT;
 $("#fbi").innerHTML=`<a class="fbc" href="samp://${ip}" aria-label="${t("Jugar ahora")}">${ic("jugar")}</a><button class="fbc" type="button" aria-label="${t("Copiar IP")}" onclick="navigator.clipboard.writeText('${ip}').then(()=>toast(t('Copiada')))">${ic("copiar_ip")}</button><a class="fbc" href="${DISCORD}" target="_blank" rel="noopener" aria-label="Discord">${ic("discord_comentarios")}</a>`;
 fbNav();
 return `<div class="fbw"><div class="fbc2">${skin(U.skin,U.name)}<button class="fbpill" onclick="nuevo()">${t("¿Qué estás pensando?")}</button><button class="gal" type="button" onclick="nuevo(1)" aria-label="${t("Galería")}">${ic("galeria")}</button></div>
-${storyStrip(a.ok?a.d:[])}`
-+(l.length?l.map(fbPost).join("")+(PG||more?pgn(more):""):`<p class="fbe m">${t("Aún no hay publicaciones. ¡Sé el primero!")}</p>`)+`</div>`}
+${storyStrip(a.ok?a.d:[])}${frBanner()}${U.friends?"":frEmpty()}`
++(l.length?l.map(fbPost).join("")+(PG||more?pgn(more):""):(U.friends?frNone():""))+`</div>`}
 async function pg_landing(){fbBody("login");await info();setTimeout(bindLanding);
 return `<div class="fbl"><a class="fbd" href="${DISCORD}" target="_blank" rel="noopener">${ic("discord_comentarios")} ${t("Únete al Discord para soporte y eventos")}</a>
 <button class="fbg" type="button" onclick="idioma()">${L==="en"?"English":"Español"}</button>
