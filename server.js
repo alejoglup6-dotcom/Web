@@ -19,7 +19,7 @@ const CH = 256 * 1024, IMG_MAX = 1200 * 1024, VID_MAX = (Number(E.VIDEO_MAX_MB) 
 const REEL_MAX = (Number(E.REEL_MAX_MB) || 60) * 1048576, REEL_SECS = Number(E.REEL_MAX_SECS) || 90; // reels: videos más largos (kind = "rel")
 const ADMIN_LEVELS = ["Ciudadano", "Ayudante", "Moderador", "Operador", "Administrador", "Desarrollador"];
 
-const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: 5, ssl: E.MYSQL_SSL === "1" ? { minVersion: "TLSv1.2", rejectUnauthorized: E.MYSQL_SSL_STRICT !== "0" } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
+const pool = mysql.createPool({ host: E.MYSQL_HOST, port: Number(E.MYSQL_PORT) || 3306, user: E.MYSQL_USER, password: E.MYSQL_PASSWORD, database: E.MYSQL_DATABASE, charset: "utf8mb4", connectionLimit: Math.max(2, Number(E.MYSQL_POOL) || 10), ssl: E.MYSQL_SSL === "1" ? { minVersion: "TLSv1.2", rejectUnauthorized: E.MYSQL_SSL_STRICT !== "0" } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true });
 const q = async (sql, p) => (await pool.query(sql, p))[0];
 
 // ---- Sesión: cookie firmada (HMAC), HttpOnly, 7 días ----
@@ -487,6 +487,65 @@ function mp4Dur(b) { // duración en segundos leyendo moov > mvhd (MP4/MOV)
     return ts ? du / ts : null;
   } catch { return null; }
 }
+// «faststart»: pasa el índice (moov) del MP4 antes de los datos (mdat). Los celulares suelen grabarlo al final y entonces
+// el navegador tiene que bajar el final del archivo antes de empezar a reproducir. Solo mueve cajas y corrige posiciones (stco/co64).
+function faststart(b) {
+  try {
+    const top = []; let o = 0;
+    while (o + 8 <= b.length) { let sz = b.readUInt32BE(o), hd = 8; if (sz === 1) { sz = Number(b.readBigUInt64BE(o + 8)); hd = 16; } else if (sz === 0) sz = b.length - o; if (sz < hd || o + sz > b.length) return b; top.push({ t: b.toString("ascii", o + 4, o + 8), o, sz }); o += sz; }
+    const mi = top.findIndex((x) => x.t === "moov"), di = top.findIndex((x) => x.t === "mdat");
+    if (mi < 0 || di < 0 || mi < di) return b; // ya está bien (o no es un MP4 normal)
+    const moov = Buffer.from(b.subarray(top[mi].o, top[mi].o + top[mi].sz)), shift = moov.length;
+    const fix = (st, en) => { // recorre moov > trak > mdia > minf > stbl y suma `shift` a cada posición de los datos
+      for (let p = st; p + 8 <= en;) {
+        const sz = moov.readUInt32BE(p), ty = moov.toString("ascii", p + 4, p + 8); if (sz < 8 || p + sz > en) return false;
+        if (["trak", "mdia", "minf", "stbl"].includes(ty)) { if (!fix(p + 8, p + sz)) return false; }
+        else if (ty === "stco") { const n = moov.readUInt32BE(p + 12); for (let i = 0; i < n; i++) { const v = moov.readUInt32BE(p + 16 + i * 4) + shift; if (v > 0xffffffff) return false; moov.writeUInt32BE(v, p + 16 + i * 4); } }
+        else if (ty === "co64") { const n = moov.readUInt32BE(p + 12); for (let i = 0; i < n; i++) moov.writeBigUInt64BE(moov.readBigUInt64BE(p + 16 + i * 8) + BigInt(shift), p + 16 + i * 8); }
+        p += sz;
+      }
+      return true;
+    };
+    if (!fix(8, moov.length)) return b;
+    const before = top.slice(0, di).map((x) => b.subarray(x.o, x.o + x.sz)), rest = top.slice(di).filter((x) => x.t !== "moov").map((x) => b.subarray(x.o, x.o + x.sz));
+    return Buffer.concat([...before, moov, ...rest]);
+  } catch { return b; }
+}
+// Conversión opcional a MP4 H.264 liviano (máx. 1280 px, ~2 Mbps) con ffmpeg: si existe (paquete ffmpeg-static, FFMPEG_PATH o ffmpeg del sistema).
+// Se hace en segundo plano, de a un video a la vez: el reel se publica al instante con el original y luego se cambia por el liviano.
+const { spawn, spawnSync } = require("child_process"), os = require("os");
+const FFMPEG = (() => { if (E.FFMPEG_PATH) return E.FFMPEG_PATH; try { const p = require("ffmpeg-static"); if (p) return p; } catch {} try { if (spawnSync("ffmpeg", ["-version"], { timeout: 5000 }).status === 0) return "ffmpeg"; } catch {} return null; })();
+const REEL_KBPS = Number(E.REEL_MAX_KBPS) || 2500; // por encima de esto (o si no es MP4) se convierte
+const tq = []; let tBusy = false;
+function transcodeLater(postId, mediaId) { if (FFMPEG && E.REEL_TRANSCODE !== "0") { tq.push([postId, mediaId]); tNext(); } }
+async function tNext() {
+  if (tBusy || !tq.length) return; tBusy = true;
+  const [postId, mediaId] = tq.shift(), dir = await require("fs/promises").mkdtemp(path.join(os.tmpdir(), "reel-"));
+  try {
+    const m = (await q("SELECT owner, mime, size, thumb FROM web_media WHERE id = ?", [mediaId]))[0]; if (!m) return;
+    const rows = await q("SELECT data FROM web_media_chunks WHERE media_id = ? ORDER BY n", [mediaId]), src = Buffer.concat(rows.map((r) => r.data));
+    const d = (m.mime === "video/webm" ? webmDur(src) : mp4Dur(src)) || 1, kbps = (src.length * 8) / d / 1000;
+    if (m.mime === "video/mp4" && kbps <= REEL_KBPS) return; // ya es liviano
+    const fin = path.join(dir, "in"), fout = path.join(dir, "out.mp4"); await require("fs/promises").writeFile(fin, src);
+    const ok = await new Promise((done) => {
+      const p = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", fin, "-map", "0:v:0", "-map", "0:a:0?", "-vf", "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-maxrate", "2000k", "-bufsize", "4000k", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-movflags", "+faststart", fout], { stdio: ["ignore", "ignore", "pipe"] });
+      let err = ""; p.stderr.on("data", (x) => { err += x; }); const to = setTimeout(() => p.kill("SIGKILL"), 10 * 60000);
+      p.on("close", (c) => { clearTimeout(to); if (c !== 0) console.log("[reel] ffmpeg falló:", err.slice(-300)); done(c === 0); }); p.on("error", (e) => { clearTimeout(to); console.log("[reel] ffmpeg:", e.message); done(false); });
+    });
+    if (!ok) return;
+    const out = await require("fs/promises").readFile(fout);
+    if (!out.length || out.length >= src.length * 0.95 && m.mime === "video/mp4") return; // no ganó nada
+    if (!(await q("SELECT 1 FROM web_post_media WHERE post_id = ? AND media_id = ?", [postId, mediaId])).length) return; // lo borraron mientras tanto
+    const r = await q("INSERT INTO web_media (owner, kind, mime, size, thumb) VALUES (?, 'rel', 'video/mp4', ?, ?)", [m.owner, out.length, m.thumb]);
+    try { for (let n = 0, o = 0; o < out.length; n++, o += CH) await q("INSERT INTO web_media_chunks (media_id, n, data) VALUES (?, ?, ?)", [r.insertId, n, out.subarray(o, o + CH)]); }
+    catch (e) { await delMedia([r.insertId]); throw e; }
+    const up = await q("UPDATE web_post_media SET media_id = ? WHERE post_id = ? AND media_id = ?", [r.insertId, postId, mediaId]);
+    if (up.affectedRows) setTimeout(() => delMedia([mediaId]).catch(() => {}), 30 * 60000).unref(); // el original se borra en 30 min: quien lo esté viendo no se corta
+    else await delMedia([r.insertId]);
+    console.log(`[reel] ${postId}: ${Math.round(src.length / 1024)} KB → ${Math.round(out.length / 1024)} KB`);
+  } catch (e) { console.log("[reel] no se pudo convertir:", e.message); }
+  finally { await require("fs/promises").rm(dir, { recursive: true, force: true }).catch(() => {}); tBusy = false; tNext(); }
+}
 function webmDur(b) { // duración en segundos leyendo Duration y TimecodeScale (WebM)
   try {
     const h = b.subarray(0, 8192); if (h.readUInt32BE(0) !== 0x1a45dfa3) return null;
@@ -496,7 +555,7 @@ function webmDur(b) { // duración en segundos leyendo Duration y TimecodeScale 
     return d == null ? null : (d * sc) / 1e9;
   } catch { return null; }
 }
-const delMedia = async (ids) => { ids = ids.filter(Boolean); if (!ids.length) return; await q("DELETE FROM web_media_chunks WHERE media_id IN (?)", [ids]); await q("DELETE FROM web_media WHERE id IN (?)", [ids]); };
+const delMedia = async (ids) => { ids = ids.filter(Boolean); if (!ids.length) return; mcDrop(ids); ids.forEach((i) => mediaMeta.delete(Number(i))); await q("DELETE FROM web_media_chunks WHERE media_id IN (?)", [ids]); await q("DELETE FROM web_media WHERE id IN (?)", [ids]); };
 async function removePosts(ids) { // borra publicaciones con sus me gusta, comentarios, etiquetas y medios
   if (!ids.length) return;
   const ms = await q("SELECT m.id, m.thumb FROM web_post_media pm JOIN web_media m ON m.id = pm.media_id WHERE pm.post_id IN (?)", [ids]);
@@ -521,7 +580,8 @@ app.post("/api/media", express.raw({ type: () => true, limit: Math.max(VID_MAX, 
   const u = await me(req); if (!u) return res.status(401).json({ error: "Inicia sesión" });
   if (req.headers["x-sc"] !== "1") return res.status(403).json({ error: "Petición no válida" });
   if (!hit("m|" + u.id, 20, 600000)) return res.status(429).json({ error: "Demasiadas subidas, espera unos minutos" });
-  const kind = req.query.kind === "vid" ? "vid" : req.query.kind === "rel" ? "rel" : "img", mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase(), buf = req.body;
+  const kind = req.query.kind === "vid" ? "vid" : req.query.kind === "rel" ? "rel" : "img", mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+  let buf = req.body;
   if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: "Archivo vacío" });
   let thumb = null;
   if (kind === "img") { if (!imgOk(mime, buf) || buf.length > IMG_MAX) return res.status(400).json({ error: "Imagen no válida o muy pesada" }); }
@@ -530,6 +590,7 @@ app.post("/api/media", express.raw({ type: () => true, limit: Math.max(VID_MAX, 
     if ((!mp && !wb) || buf.length > mx || (mp && buf.toString("ascii", 4, 8) !== "ftyp")) return res.status(400).json({ error: "Video no válido. Usa MP4 de hasta " + Math.round(mx / 1048576) + " MB" });
     const d = mp ? mp4Dur(buf) : webmDur(buf);
     if (d == null || d > secs + 0.5) return res.status(400).json({ error: d == null ? "No pude leer la duración del video. Usa un MP4." : `El video debe durar máximo ${rel ? REEL_SECS : 15} segundos` });
+    if (mp) buf = faststart(buf);
     thumb = pid(req.query.thumb);
     if (!thumb || !(await q("SELECT id FROM web_media WHERE id = ? AND owner = ? AND kind = 'img'", [thumb, u.id])).length) return res.status(400).json({ error: "Falta la miniatura del video" });
   }
@@ -538,20 +599,43 @@ app.post("/api/media", express.raw({ type: () => true, limit: Math.max(VID_MAX, 
   catch (e) { await delMedia([r.insertId]); throw e; }
   res.json({ id: r.insertId, kind });
 });
+// Caché en memoria de los trozos más vistos (los reels se ven muchas veces seguidas): evita leer MySQL en cada petición de video
+const MCACHE_MAX = (Number(E.MEDIA_CACHE_MB) || 96) * 1048576, mcache = new Map(); let mcacheSize = 0;
+const mcGet = (k) => { const v = mcache.get(k); if (v) { mcache.delete(k); mcache.set(k, v); } return v; }; // al leerlo pasa a ser el más reciente
+const mcPut = (k, v) => { if (v.length > MCACHE_MAX / 4 || mcache.has(k)) return; mcache.set(k, v); mcacheSize += v.length; for (const [x, y] of mcache) { if (mcacheSize <= MCACHE_MAX) break; mcache.delete(x); mcacheSize -= y.length; } };
+const mcDrop = (ids) => { const set = new Set(ids.map(String)); for (const [k, v] of mcache) if (set.has(k.split(":")[0])) { mcache.delete(k); mcacheSize -= v.length; } };
+const mediaMeta = new Map(); // id → { mime, size } (los medios no cambian nunca)
+async function chunks(id, a, b) { // trozos a..b de un medio, desde la caché o de MySQL (solo los que faltan)
+  const out = [], miss = [];
+  for (let n = a; n <= b; n++) { const c = mcGet(id + ":" + n); out.push(c); if (!c) miss.push(n); }
+  if (miss.length) for (const r of await q("SELECT n, data FROM web_media_chunks WHERE media_id = ? AND n BETWEEN ? AND ? ORDER BY n", [id, miss[0], miss.at(-1)])) { const n = Number(r.n); if (out[n - a]) continue; out[n - a] = r.data; mcPut(id + ":" + n, r.data); }
+  return out.map((c) => c || Buffer.alloc(0));
+}
 app.get("/media/:id(\\d+)", async (req, res) => {
-  const m = (await q("SELECT mime, size FROM web_media WHERE id = ?", [req.params.id]))[0];
-  if (!m) return res.status(404).end();
-  const size = Number(m.size); let s = 0, e = size - 1, part = false;
+  const id = Number(req.params.id);
+  let m = mediaMeta.get(id);
+  if (!m) { m = (await q("SELECT mime, size FROM web_media WHERE id = ?", [id]))[0]; if (!m) return res.status(404).end(); if (mediaMeta.size > 5000) mediaMeta.clear(); mediaMeta.set(id, m); }
+  const size = Number(m.size), etag = `"m${id}-${size}"`; let s = 0, e = size - 1, part = false;
+  const head = { "Content-Type": m.mime, "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=31536000, immutable", ETag: etag }; // un id nunca cambia de contenido
+  if (req.headers["if-none-match"] === etag) return res.status(304).set(head).end();
   const rg = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
   if (rg && (rg[1] || rg[2])) {
     part = true;
     if (rg[1] === "") s = Math.max(0, size - Number(rg[2])); else { s = Number(rg[1]); if (rg[2]) e = Math.min(e, Number(rg[2])); }
-    if (s > e) return res.status(416).set("Content-Range", `bytes */${size}`).end();
-    e = Math.min(e, s + 2 * 1048576 - 1);
+    if (s > e || s >= size) return res.status(416).set("Content-Range", `bytes */${size}`).end();
+    e = Math.min(e, s + 2 * 1048576 - 1); // máx. 2 MB por respuesta: el navegador pide el resto según lo necesite
   }
-  const a = Math.floor(s / CH), rows = await q("SELECT data FROM web_media_chunks WHERE media_id = ? AND n BETWEEN ? AND ? ORDER BY n", [req.params.id, a, Math.floor(e / CH)]);
-  const buf = Buffer.concat(rows.map((r) => r.data)).subarray(s - a * CH, e - a * CH + 1);
-  res.status(part ? 206 : 200).set({ "Content-Type": m.mime, "Accept-Ranges": "bytes", "Content-Length": buf.length, "Cache-Control": "public, max-age=86400", ...(part ? { "Content-Range": `bytes ${s}-${e}/${size}` } : {}) }).end(buf);
+  res.status(part ? 206 : 200).set({ ...head, "Content-Length": e - s + 1, ...(part ? { "Content-Range": `bytes ${s}-${e}/${size}` } : {}) });
+  if (req.method === "HEAD") return res.end();
+  // se envía por tandas de 1 MB: un archivo grande sin Range no se carga entero en memoria
+  try {
+    for (let a = Math.floor(s / CH), last = Math.floor(e / CH); a <= last && !res.destroyed; a += 4) {
+      const b = Math.min(last, a + 3), buf = Buffer.concat(await chunks(id, a, b)), off = a * CH;
+      const piece = buf.subarray(Math.max(0, s - off), Math.min(buf.length, e - off + 1));
+      if (!res.write(piece)) await new Promise((ok) => { res.once("drain", ok); res.once("close", ok); });
+    }
+    res.end();
+  } catch (err) { console.log("[media]", err.message); res.destroy(); } // ya se enviaron las cabeceras: se corta la conexión y el navegador reintenta
 });
 // ---- Historias: una foto o video (máx. 15 s) por historia; duran 24 h; usan los mismos me gusta y comentarios que las publicaciones ----
 app.post("/api/stories", async (req, res) => {
@@ -586,6 +670,7 @@ app.post("/api/reels", async (req, res) => {
   if (!mid || !(await q("SELECT m.id FROM web_media m WHERE m.id = ? AND m.owner = ? AND m.kind = 'rel' AND NOT EXISTS (SELECT 1 FROM web_post_media x WHERE x.media_id = m.id)", [mid, u.id])).length) return res.status(400).json({ error: "Sube primero el video" });
   const r = await q("INSERT INTO web_posts (type, title, body, author) VALUES ('reel', '', ?, ?)", [cap, u.name]);
   await q("INSERT INTO web_post_media (post_id, media_id, pos) VALUES (?, ?, 0)", [r.insertId, mid]);
+  transcodeLater(r.insertId, mid);
   for (const m of await mentioned(cap, u.id)) await notify(m.id, u, "mention", r.insertId, cap);
   res.json({ ok: true, id: r.insertId });
 });
@@ -664,5 +749,6 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_saved (post_id INT NOT NULL, player_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (post_id, player_id), KEY pl (player_id, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_friends (a INT NOT NULL, b INT NOT NULL, status TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (a, b), KEY b (b, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   setInterval(cleanup, 3600000).unref(); cleanup();
+  console.log(FFMPEG ? `[reel] ffmpeg disponible: los reels pesados se convierten a MP4 liviano (${FFMPEG})` : "[reel] sin ffmpeg: los reels se guardan tal cual (instala ffmpeg-static para convertirlos)");
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
 })().catch((e) => { console.error("No pude conectar con la base de datos:", e.message); process.exit(1); });
