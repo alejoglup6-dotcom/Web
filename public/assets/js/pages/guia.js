@@ -8,6 +8,7 @@ const GD_KIND = {
   guia: ["Guía", "faq"], comando: ["Comando", "rango_desarrollador"], trabajo: ["Trabajo", "dinero"],
   faccion: ["Facción", "staff_equipo"], lugar: ["Lugar", "ubicacion"], negocio: ["Negocio", "marketplace"],
 };
+const GD_PLURAL = { guia: "Guías", comando: "Comandos", trabajo: "Trabajos", faccion: "Facciones", lugar: "Lugares", negocio: "Negocios" };
 const GD_STOP = new Set("de del la las el los un una unos unas y o a al en con por para que como cual donde cuando se mi mis tu tus su sus es son hay hago hacer puedo puede quiero me lo le les esta este esto eso ese hace sirve pongo poner pone necesito tengo tener saber sabe algo alguien funciona usar uso".split(" "));
 // Grupos de sinónimos (sin acentos): buscar una palabra encuentra las demás
 const GD_SYN = [
@@ -75,7 +76,7 @@ function gdBuild() {
   GD.idx = GD.data.entries.map((e) => {
     const fields = F.map(([f, w]) => { const set = new Set(); for (const t of gdToks(e[f])) { set.add(t); set.add(gdStem(t)); } return [set, w]; });
     for (const [set] of fields) for (const t of set) if (!t.startsWith("/") && t.length > 2) GD.vocab.set(t, (GD.vocab.get(t) || 0) + 1);
-    return { e, fields, title: gdNorm(e.t) };
+    return { e, fields, title: gdNorm(e.t), sum: gdNorm(e.s) };
   });
   for (const k of GD_SYNMAP.keys()) if (!GD.vocab.has(k)) GD.vocab.set(k, 1);
 }
@@ -114,6 +115,7 @@ function gdSearch(query, kind = GD.kind) {
     score *= Math.pow(Math.min(1, hits / known), 2);
     if (hits >= known) score *= 1.5;
     if (toks.length > 1 && it.title.includes(qn)) score += 6;
+    else if (toks.length > 1 && it.sum.includes(qn)) score += 5; // la frase tal cual en la descripción
     if (e.k === "comando" && (it.title === qn || it.title === "/" + qn)) score += 25;
     if (e.k === "guia") score *= how ? 1.6 : 1.15;
     if (how && (e.k === "faccion" || e.k === "trabajo")) score *= 1.4;
@@ -227,7 +229,7 @@ function gdHome() {
   const cats = [["Empezar", "como-empezar", "jugar"], ["Teclas", "teclas", "mas"], ["Dinero", "ganar-dinero", "dinero"], ["Vehículos", "vehiculos", "marketplace"], ["Negocios", "negocios", "marketplace"], ["Rol", "rol", "comunidad"], ["Facciones", "facciones", "staff_equipo"], ["Ayuda", "ayuda-soporte", "faq"]];
   const count = (k) => GD.data.entries.filter((e) => e.k === k && (GD.staff || !gdIsStaff(e))).length;
   return `<div class="gd-cats">${cats.map(([n, slug, i]) => `<button class="card" type="button" onclick="gdOpen('guia:${slug}')">${ic(i)}<b>${t(n)}</b></button>`).join("")}</div>
-    <div class="gd-cats gd-kinds">${["comando", "trabajo", "lugar", "faccion", "negocio"].map((k) => `<button class="card" type="button" onclick="gdKind('${k}',1)">${ic(GD_KIND[k][1])}<b>${t(GD_KIND[k][0] + "s").replace("Faccións", "Facciones")}</b><small class="m">${count(k)}</small></button>`).join("")}</div>
+    <div class="gd-cats gd-kinds">${["comando", "trabajo", "lugar", "faccion", "negocio"].map((k) => `<button class="card" type="button" onclick="gdKind('${k}',1)">${ic(GD_KIND[k][1])}<b>${t(GD_PLURAL[k])}</b><small class="m">${count(k)}</small></button>`).join("")}</div>
     <h3 class="gd-h3">${t("Lo más buscado")}</h3><div class="gd-chips">${gdChips(gdPopular().slice(0, 12))}</div>
     <h3 class="gd-h3">${t("Guías")}</h3>${arts.map(gdCard).join("")}`;
 }
@@ -288,7 +290,7 @@ async function pg_guia() {
   return `<h2 class="ttl">${ic("buscar")} ${t("Guía del servidor")}</h2>
   <p class="m gd-sub">${t("Comandos, trabajos, lugares, negocios, facciones y guías de SampCity. Se actualiza sola con el servidor")}${up ? ` · ${t("última vez")} ${esc(up)}` : ""}.</p>
   <form class="gd-b" role="search" onsubmit="event.preventDefault();gdPaint()"><label class="gd-in">${ic("buscar")}<input id="gd-q" type="search" autocomplete="off" enterkeyhint="search" placeholder="${t("Busca un comando, un lugar, un trabajo… (ej. vender coche, /me, gasolinera)")}" value="${esc(GD.q)}" oninput="gdInput(this.value)" aria-label="${t("Buscar en la guía")}"></label></form>
-  <div class="gd-f">${["", "guia", "comando", "trabajo", "lugar", "faccion", "negocio"].map((k) => `<button class="btn s" type="button" data-k="${k}" onclick="gdKind('${k}')">${t(k ? GD_KIND[k][0] + "s" : "Todo").replace("Faccións", "Facciones")}</button>`).join("")}
+  <div class="gd-f">${["", "guia", "comando", "trabajo", "lugar", "faccion", "negocio"].map((k) => `<button class="btn s" type="button" data-k="${k}" onclick="gdKind('${k}')">${t(k ? GD_PLURAL[k] : "Todo")}</button>`).join("")}
     <label class="gd-st"><input type="checkbox" ${GD.staff ? "checked" : ""} onchange="gdStaff(this.checked)"> ${t("Comandos de staff")}</label></div>
   <div id="gd-res" aria-live="polite"></div>`;
 }
