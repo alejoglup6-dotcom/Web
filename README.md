@@ -105,3 +105,9 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - Si un video se queda quieto 5 s o falla la conexión, se vuelve a pedir desde donde iba (hasta 3 veces); después aparece «Toca para reintentar». Mientras carga se ve un círculo girando.
 - Servidor: los MP4 se guardan con el índice al principio («faststart»), así empiezan a reproducirse sin bajar el final del archivo. Los trozos de video más vistos quedan en memoria (`MEDIA_CACHE_MB`, por defecto 96) y el navegador guarda los videos en su caché. La conexión a MySQL usa hasta `MYSQL_POOL` conexiones (por defecto 10).
 - **Conversión con ffmpeg** (dependencia opcional `ffmpeg-static`, se instala con `npm install`; o `FFMPEG_PATH`, o el `ffmpeg` del sistema): los reels que pesan más de `REEL_MAX_KBPS` (por defecto 2500 kbps) o que no son MP4 se convierten en segundo plano a MP4 H.264 de máx. 1280 px (~2 Mbps). El reel sale al instante con el original y luego se cambia por el liviano; el original se borra a los 30 min. Se apaga con `REEL_TRANSCODE=0`. Al arrancar, el registro dice si ffmpeg está disponible.
+
+## Guía del servidor (`/guia`)
+- Buscador de comandos, trabajos, facciones, lugares, negocios, estacionamientos y guías, con "quizás quisiste decir", sinónimos y búsquedas relacionadas.
+- Se actualiza sola: el gamemode (`gamemodes/src/guia.pwn` del repo Backup) vuelca cada vez que arranca sus comandos, trabajos, facciones y lugares en `guide_entries`; la web lo junta con `businesses` y `parkings` en vivo (caché de 2 min). Las guías escritas a mano están en `data/guia.json`.
+- API: `GET /api/guia`, `POST /api/guia/busqueda` (registro de búsquedas, máx. 20 por minuto por IP), `GET /api/guia/sin-resultados` (staff: lo que la gente busca y no encuentra).
+- Tabla nueva (se crea sola): `web_guide_searches`. Permisos MySQL: SELECT en `guide_entries`, `businesses`, `parkings` y `parking_spots`.
