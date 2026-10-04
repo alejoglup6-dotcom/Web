@@ -844,6 +844,24 @@ app.get("/api/launcher/news", async (req, res) => { // noticias y actualizacione
   } catch (e) { res.json([]); }
 });
 app.get("/api/launcher/donate", (req, res) => res.json([[], []])); // la tienda se abre en la web (sampcity.app/tienda)
+// Cliente de 64 bits (SAMP-Mobile 2.10, app com.sampcity.game): otro formato para lo mismo
+app.get("/api/launcher/servers.json", async (req, res) => {
+  const [ip, port] = (await launcherAddress()).split(":");
+  let online = 0;
+  try { online = Number((await q("SELECT COALESCE(SUM(connected), 0) AS n FROM player"))[0].n) || 0; } catch (e) {}
+  res.set("Cache-Control", "no-store");
+  res.json({ query: [{ number: 1, name: "SampCity", ip, port: Number(port) || 7777, online, maxplayers: 300, password: false }] });
+});
+app.get("/api/launcher/client_config.json", (req, res) => {
+  const cdn = (E.LAUNCHER_CDN || "").replace(/\/+$/, "");
+  res.set("Cache-Control", "no-store");
+  res.json({ client_config: { version_code: Number(E.LAUNCHER_GAME_VERSION) || 105, url_launcher: E.LAUNCHER_GAME_APK_URL || "", url_cache_files: "https://sampcity.app/api/launcher/files.json", url_files: cdn ? cdn + "/" : "" } });
+});
+app.get("/api/launcher/files.json", (req, res) => { // sin LAUNCHER_CDN no se manda nada que descargar
+  const cdn = (E.LAUNCHER_CDN || "").replace(/\/+$/, "");
+  res.set("Cache-Control", "no-store");
+  res.json({ files: cdn ? LAUNCHER_CACHE.map((f) => { const p = (f.path ? f.path + "/" : "") + f.name; return { name: f.name, size: f.bytes[0], path: p, url: cdn + "/" + p }; }) : [] });
+});
 
 // ---- SEO: robots.txt, sitemap.xml e index con la URL real (canonical / Open Graph) ----
 const fs = require("fs");
