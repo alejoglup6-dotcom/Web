@@ -1,9 +1,10 @@
 // Página: Verificación de Discord (/verificar). El botón de verificar del Discord trae aquí: 1) iniciar sesión con la
 // cuenta del servidor, 2) vincular Discord (OAuth, /auth/discord?next=verificar), 3) el bot pone el rol y el apodo.
 window.LOGIN_NEXT="/verificar";
+window.discordMsg=(q)=>{const p=q.get("discord");if(!p)return"";if(p==="ok")return t("¡Cuenta vinculada! En menos de un minuto el bot te da acceso en el Discord.");if(p==="duplicado")return q.get("tipo")==="discord"?t("Tu Discord ya está vinculado a la cuenta")+" "+(q.get("cuenta")||"")+". "+t("Inicia sesión con esa cuenta o desvincúlala desde su perfil."):t("Esta cuenta del juego ya tiene otro Discord vinculado. Desvincúlalo en tu perfil y vuelve a intentarlo.");return({cancelado:t("Cancelaste la autorización en Discord. Vuelve a pulsar Vincular con Discord."),sesion:t("Se cerró tu sesión en la web. Inicia sesión otra vez y vuelve a pulsar Vincular con Discord."),estado:t("El enlace caducó. Vuelve a pulsar Vincular con Discord."),token:t("Discord rechazó la conexión. Avisa al staff (configuración de la web)."),usuario:t("Discord no devolvió tu usuario. Inténtalo de nuevo.")}[q.get("motivo")]||t("No se pudo vincular, inténtalo de nuevo."))};
 function pg_verificar(){
  const p=new URLSearchParams(location.search).get("discord");
- const aviso=p?`<p class="msg${p==="ok"?" ok":""}" role="status">${t({ok:"¡Cuenta vinculada!",duplicado:"Esa cuenta de Discord o de SA-MP ya está vinculada.",error:"No se pudo vincular, inténtalo de nuevo."}[p]||"")}</p>`:"";
+ const aviso=p?`<p class="msg${p==="ok"?" ok":""}" role="status">${esc(discordMsg(new URLSearchParams(location.search)))}</p>`:"";
  if(p)history.replaceState(null,"","/verificar");
  const paso=(n,on,done,tit,txt,btn)=>`<li class="vp${on?" on":""}${done?" done":""}"><span class="vn">${done?"✓":n}</span><div><b>${t(tit)}</b><p class="m">${t(txt)}</p>${on&&btn?btn:""}</div></li>`;
  const logged=!!U,linked=!!U?.discord;

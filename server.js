@@ -159,34 +159,51 @@ app.get("/api/me", async (req, res) => {
 });
 
 // ---- Vincular Discord (OAuth2: solo se lee el id del usuario) ----
+// El "state" se guarda aquí (por cuenta, 10 min) y no en una cookie: algunos navegadores no la devolvían al volver de
+// Discord y el enlace fallaba sin decir nada. Siempre se vuelve a la página de donde se vino (lo dice el propio state).
+const DSTATE = new Map(); // id de la cuenta -> { state, until }
 app.get("/auth/discord", async (req, res) => {
   const u = await me(req);
   const next = req.query.next === "verificar" ? "verificar" : "perfil"; // a dónde se vuelve después
   if (!u) return res.redirect(next === "verificar" ? "/verificar" : "/?login=1");
+  const now = Date.now();
+  for (const [k, v] of DSTATE) if (v.until < now) DSTATE.delete(k);
   const state = crypto.randomBytes(16).toString("hex") + "." + next;
-  res.append("Set-Cookie", `dst=${state}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600${HTTPS ? "; Secure" : ""}`);
+  DSTATE.set(Number(u.id), { state, until: now + 600000 });
   const p = new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, redirect_uri: `${BASE}/auth/discord/callback`, response_type: "code", scope: "identify", state });
   res.redirect(`https://discord.com/oauth2/authorize?${p}`);
 });
 app.get("/auth/discord/callback", async (req, res) => {
+  const qs = typeof req.query.state === "string" ? req.query.state : "";
+  const back = qs.endsWith(".verificar") ? "/verificar" : "/perfil";
+  const fail = (motivo, info = "") => {
+    console.log("[discord]", motivo, info);
+    return res.redirect(`${back}?discord=error&motivo=${motivo}`);
+  };
   try {
+    if (req.query.error) return fail("cancelado", String(req.query.error)); // pulsó Cancelar en Discord
     const u = await me(req);
-    const st = (req.headers.cookie || "").match(/(?:^|; )dst=([^;]+)/)?.[1];
-    res.append("Set-Cookie", `dst=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0${HTTPS ? "; Secure" : ""}`); // el estado se usa una sola vez
-    const back = st && st.endsWith(".verificar") ? "/verificar" : "/perfil";
-    if (!u || !st || typeof req.query.state !== "string" || st !== req.query.state || typeof req.query.code !== "string" || !req.query.code) return res.redirect(back + "?discord=error");
-    const t = await (await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }) })).json();
-    const d = await (await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` } })).json();
-    if (!/^\d+$/.test(d.id || "")) return res.redirect(back + "?discord=error");
-    const already = (await q("SELECT player_id, discord_id FROM discord_links WHERE discord_id = ? OR player_id = ?", [d.id, u.id]))[0];
-    // la misma pareja otra vez (p. ej. volver a verificarse) no es un error
-    if (already && !(Number(already.player_id) === Number(u.id) && String(already.discord_id) === d.id)) return res.redirect(back + "?discord=duplicado");
-    if (!already) {
+    if (!u) return fail("sesion");
+    const saved = DSTATE.get(Number(u.id));
+    DSTATE.delete(Number(u.id)); // el estado se usa una sola vez
+    if (!saved || saved.until < Date.now() || saved.state !== qs || typeof req.query.code !== "string" || !req.query.code) return fail("estado");
+    const t = await (await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }), signal: AbortSignal.timeout(10000) })).json();
+    if (!t.access_token) return fail("token", JSON.stringify(t).slice(0, 200)); // casi siempre DISCORD_CLIENT_SECRET mal puesto
+    const d = await (await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` }, signal: AbortSignal.timeout(10000) })).json();
+    if (!/^\d+$/.test(d.id || "")) return fail("usuario", JSON.stringify(d).slice(0, 200));
+    const rows = await q("SELECT dl.player_id, dl.discord_id, p.name FROM discord_links dl LEFT JOIN player p ON p.id = dl.player_id WHERE dl.discord_id = ? OR dl.player_id = ?", [d.id, u.id]);
+    const same = rows.find((r) => Number(r.player_id) === Number(u.id) && String(r.discord_id) === d.id);
+    if (!same && rows.length) {
+      // ese Discord ya está con otra cuenta del juego, o esta cuenta ya tiene otro Discord
+      const other = rows.find((r) => String(r.discord_id) === d.id);
+      return res.redirect(other ? `${back}?discord=duplicado&tipo=discord&cuenta=${encodeURIComponent(other.name || "")}` : `${back}?discord=duplicado&tipo=cuenta`);
+    }
+    if (!same) {
       await q("INSERT INTO discord_links (player_id, discord_id) VALUES (?, ?)", [u.id, d.id]);
       await notify(u.id, { id: 0 }, "discord");
     }
     res.redirect(back + "?discord=ok"); // el bot ve el enlace nuevo y pone el rol de verificado y el apodo
-  } catch (e) { console.log("[discord]", e.message); res.redirect("/perfil?discord=error"); }
+  } catch (e) { return fail("servidor", e.message); }
 });
 app.delete("/api/discord", async (req, res) => {
   const u = await me(req);
