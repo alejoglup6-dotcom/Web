@@ -7,7 +7,7 @@
 - Login: usa el mismo nombre y contraseña del juego (bcrypt o SHA256+sal, como snrp.pwn).
 - La web solo crea la tabla `web_posts`; las demás (`player`, `discord_links`, `crews`) ya existen y solo se leen,
   salvo `discord_links`, donde se inserta/borra la vinculación.
-- Noticias/actualizaciones/FAQ: las publica quien tenga `admin_level` >= POST_MIN_LEVEL.
+- Noticias/actualizaciones/FAQ: las publica quien tenga `admin_level` >= POST_MIN_LEVEL (por defecto 5 = Administrador, en la escala de staff 0-9 del 04-oct-2026; si en Render está en 4, cámbialo a 5).
 
 - Fotos: el staff las publica por enlace https:// (tipo `photo`), sin subir archivos.
 - `SERVER_IP` (opcional) en el `.env` muestra el botón "Copiar IP"; `/api/info` solo da cifras públicas.
