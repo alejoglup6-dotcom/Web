@@ -129,6 +129,47 @@ const postOwner = async (id) => { // dueño de una publicación (sin JOIN entre 
 };
 
 // ---- Login ----
+// ---- Registro desde la web (04-oct-2026) ----
+// Crea la cuenta en la tabla player como el juego (mismas reglas de nombre, contraseña y correo) y la apunta en
+// web_signups: al entrar al servidor por primera vez, tras poner la contraseña, el juego abre el creador de personaje
+// y completa la cuenta (gamemodes/src/web_signup.pwn del repo Backup). Ya se puede iniciar sesión y verificar Discord.
+const RP_NAME = /^[A-Z][A-Za-z]*_[A-Z][A-Za-z]*$/;
+const EMAIL = /^[A-Za-z0-9_.]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+app.post("/api/register", async (req, res) => {
+  const name = str(req.body.name).trim(), pass = str(req.body.password).replace(/%/g, "#"), email = str(req.body.email).trim();
+  if (!hit("rv|" + req.ip, 30, 600000)) return res.status(429).json({ error: "Demasiados intentos. Espera unos minutos." });
+  if (name.length < 3 || name.length > 24 || !RP_NAME.test(name)) return res.status(400).json({ error: "El nombre tiene que ser Nombre_Apellido: dos palabras con mayúscula inicial, solo letras, unidas por un guion bajo." });
+  if (pass.length < 6 || pass.length > 18) return res.status(400).json({ error: "La contraseña tiene que tener de 6 a 18 caracteres." });
+  if (email.length > 31 || !EMAIL.test(email)) return res.status(400).json({ error: "Escribe un correo válido (máximo 31 caracteres)." });
+  if (!(await captchaOk(req))) return res.status(400).json({ error: "Completa la verificación anti-robots", captcha: true });
+  if ((await q("SELECT id FROM player WHERE name = ?", [name]))[0]) return res.status(409).json({ error: "Ese nombre ya está en uso. Si es tuyo, inicia sesión." });
+  if ((await q("SELECT id FROM player WHERE email = ?", [email]))[0]) return res.status(409).json({ error: "Ese correo ya está en uso." });
+  if (!hit("r|" + req.ip, 5, 3600000)) return res.status(429).json({ error: "Demasiadas cuentas nuevas desde tu conexión. Prueba más tarde." }); // solo cuentan las que se crean
+  // contraseña como SHA256_PassHash del juego (al entrar al servidor se pasa sola a bcrypt)
+  const salt = crypto.randomBytes(12).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 15).padEnd(15, "x");
+  const hash = crypto.createHash("sha256").update(pass + salt).digest("hex").toUpperCase();
+  const now = new Date(), d = (n) => String(n).padStart(2, "0");
+  const date = `${now.getFullYear()}-${d(now.getMonth() + 1)}-${d(now.getDate())} ${d(now.getHours())}:${d(now.getMinutes())}:${d(now.getSeconds())}`;
+  let id;
+  try {
+    // valores de una cuenta nueva (SetPiDefaultValues de snrp.pwn); el juego los vuelve a poner al crear el personaje
+    const r = await q(
+      `INSERT INTO player (name, ip, email, salt, pass, reg_date, last_connection, last_connection_timestamp, level, rep, connected, playerid, time_for_rep, skin, cash,
+        pos_x, pos_y, pos_z, angle, state, fight_style, health, hungry, thirst, config_sounds, config_audio, config_time, config_hud, config_admin, config_secure_login, phone_visible_number, doubt_channel)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 0, 0, 3600000, 170, 0, 396.7158, -1529.8263, 32.2734, 216.87, 0, 4, 100, 100, 100, 1, 1, 1, 1, 1, 0, 1, 1)`,
+      [name, String(req.ip || "").replace(/^::ffff:/, "").slice(0, 15), email, salt, hash, date, date, Math.floor(now / 1000)],
+    );
+    id = r.insertId;
+    await q("INSERT INTO web_signups (player_id) VALUES (?)", [id]);
+  } catch (e) {
+    if (e.code === "ER_DUP_ENTRY") return res.status(409).json({ error: "Ese nombre o correo ya está en uso." });
+    console.log("[registro]", e.message);
+    return res.status(500).json({ error: "No se pudo crear la cuenta. Inténtalo de nuevo." });
+  }
+  setSession(res, id);
+  res.json({ ok: true });
+});
+
 app.post("/api/login", async (req, res) => {
   const name = str(req.body.name).trim().slice(0, 24), pass = str(req.body.password).slice(0, 72).replace(/%/g, "#"); // el juego cambia % por # en todo lo que se escribe
   const key = `${req.ip}|${name.toLowerCase()}`, ipKey = `${req.ip}|*`;
@@ -758,6 +799,7 @@ app.use((err, req, res, next) => {
 (async () => {
   // Tablas propias de la web (no se toca ninguna del juego)
   await q(`CREATE TABLE IF NOT EXISTS web_posts (id INT AUTO_INCREMENT PRIMARY KEY, type VARCHAR(8) NOT NULL, title VARCHAR(120) NOT NULL, body TEXT NOT NULL, author VARCHAR(24) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY t (type)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await q("CREATE TABLE IF NOT EXISTS web_signups (player_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_likes (post_id INT NOT NULL, player_id INT NOT NULL, PRIMARY KEY (post_id, player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_comments (id INT AUTO_INCREMENT PRIMARY KEY, post_id INT NOT NULL, player_id INT NOT NULL, author VARCHAR(24) NOT NULL, body VARCHAR(300) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY p (post_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_images (id INT AUTO_INCREMENT PRIMARY KEY, mime VARCHAR(16) NOT NULL, data MEDIUMBLOB NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
