@@ -438,3 +438,9 @@ body.has-nav .rls{bottom:calc(var(--nav) + env(safe-area-inset-bottom))}
 .rl.er .rler{display:block}
 .rl.er .rlsp,.rl.er .rlpp{opacity:0}
 .rlv{transform:translateZ(0)}
+/* Verificación de Discord (/verificar): pasos */
+.vpasos{list-style:none;margin:.9rem 0 0;padding:0;display:grid;gap:.6rem}
+.vp{display:flex;gap:.8rem;align-items:flex-start;padding:.75rem .9rem;border-radius:12px;border:1px solid var(--line,rgba(255,255,255,.08));opacity:.6}
+.vp.on{opacity:1;border-color:var(--rosa)}.vp.done{opacity:.85}
+.vp .vn{flex:none;width:2rem;height:2rem;border-radius:50%;display:grid;place-items:center;font-family:"Russo One",sans-serif;background:var(--rosa);color:#fff}
+.vp.done .vn{background:var(--okc)}.vp p{margin:.2rem 0 .5rem;font-size:.88rem}
