@@ -1,0 +1,208 @@
+{
+  "_nota": "Artículos de la guía (/guia). Lo demás (comandos, trabajos, facciones, lugares, negocios y estacionamientos) sale solo del servidor. body admite: párrafos, listas con '- ', **negrita** y `código`. relacionados = slugs de otros artículos.",
+  "articulos": [
+    {
+      "slug": "como-empezar", "title": "Cómo empezar en SampCity", "category": "Empezar",
+      "tags": "nuevo empezar inicio registro cuenta primeros pasos jugar conectar",
+      "summary": "Crea tu cuenta, entra al servidor y consigue tu primer trabajo.",
+      "body": "- Crea tu cuenta en **sampcity.app/verificar** con **Crear cuenta** (tu `Nombre_Apellido`, correo y contraseña) o entrando directamente al servidor.\n- Conéctate a `sv.sampcity.app:7781` desde Android o PC con ese mismo nombre y contraseña.\n- La primera vez creas tu personaje (sexo, apariencia, edad, país, acento) y empieza el tutorial (`/tutorial` para verlo otra vez).\n- Busca un trabajo con `/gps` → Trabajos y fírmalo con `/trabajar` en su punto. Los de nivel 1: taxista, repartidor, basurero, leñador, carnicero, conductor de autobús y pescador.\n- Vincula tu Discord en sampcity.app/verificar para ver todos los canales y recibir tus roles.",
+      "relacionados": ["conectarse", "teclas", "ganar-dinero", "discord-verificacion"]
+    },
+    {
+      "slug": "conectarse", "title": "IP del servidor y cómo conectarse", "category": "Empezar",
+      "tags": "ip puerto conectar servidor android pc launcher samp cliente direccion",
+      "summary": "La IP es sv.sampcity.app y el puerto 7781.",
+      "body": "- IP: `sv.sampcity.app` · Puerto: `7781` (en el cliente: `sv.sampcity.app:7781`).\n- Se puede jugar desde **Android** (cliente de SA-MP para móvil) y desde **PC** (SA-MP 0.3.7 u open.mp).\n- Si no entra: revisa que el nombre sea `Nombre_Apellido` y que la contraseña sea la de tu cuenta. Si sigue fallando, abre un ticket en el Discord.",
+      "relacionados": ["como-empezar", "discord-verificacion", "ayuda-soporte"]
+    },
+    {
+      "slug": "teclas", "title": "Teclas y controles", "category": "Empezar",
+      "tags": "teclas controles botones atajos y n h 2 f g c tab esc menu android pc",
+      "summary": "Y interactúa, N abre el inventario (y el menú del coche), 2 enciende el motor.",
+      "body": "- **Y**: interactuar con puertas, tiendas, cajeros, alquiler, trabajos y negocios. Si no hay nada cerca, abre el **teléfono**. Dentro del coche enciende o apaga el motor.\n- **N**: inventario. Dentro de un vehículo abre el **menú del vehículo** (motor, luces, seguro, cinturón, capó, maletero). A pie detrás de tu coche abre el **maletero**.\n- **2**: encender o apagar el motor.\n- **H**: en el coche, claxon (abre barreras y peajes). A pie, ponerse de servicio en algunos trabajos.\n- **C o H** junto a un objeto en el suelo: recogerlo.\n- **F** entrar/salir del vehículo, **G** subir de pasajero (del propio juego).\n- **TAB** lista de jugadores y **ESC** pausa: son del cliente.\n- En Android son los botones que trae el cliente con esas letras.",
+      "relacionados": ["vehiculos", "inventario", "telefono", "trucos"]
+    },
+    {
+      "slug": "ganar-dinero", "title": "Cómo ganar dinero", "category": "Dinero",
+      "tags": "dinero plata ganar trabajo sueldo payday misiones negocio economia",
+      "summary": "Trabajos, misiones diarias, el payday por jugar y los negocios.",
+      "body": "- **Trabajos**: cada trabajo paga por tarea y con más experiencia en él cobras más. Mira la lista con `/trabajos` o en el GPS.\n- **Misiones diarias y semanal** (`/misiones`): dinero y experiencia extra por trabajar, conducir y jugar.\n- **Payday**: jugando ganas experiencia de nivel; cada cierto tiempo cobras el payday.\n- **Negocios**: compra uno y gana con lo que vendes (ver Negocios de jugadores).\n- **Fin de semana x2**: algunos fines de semana todo paga el doble (`/x2`).\n- Guarda tu dinero en el banco: si te roban o mueres, el efectivo corre peligro.",
+      "relacionados": ["misiones", "banco", "negocios", "nivel"]
+    },
+    {
+      "slug": "misiones", "title": "Misiones diarias y semanales", "category": "Dinero",
+      "tags": "misiones diarias semanal premio recompensa tareas objetivos",
+      "summary": "Cada día 3 misiones y cada semana una más grande, con dinero y experiencia.",
+      "body": "- Escribe `/misiones` para verlas con su progreso.\n- Tipos: completar trabajos, recorrer kilómetros conduciendo, minutos de servicio en un trabajo y minutos jugando.\n- Al cumplirlas se cobran solas: dinero y experiencia de nivel (si tu barra de nivel ya está llena, te dan dinero extra).\n- Las diarias cambian cada día y la semanal cada lunes.",
+      "relacionados": ["ganar-dinero", "nivel"]
+    },
+    {
+      "slug": "nivel", "title": "Nivel y experiencia", "category": "Cuenta",
+      "tags": "nivel experiencia exp subir reputacion comprarnivel barra",
+      "summary": "Jugando se llena la barra de nivel; cuando está llena, /comprarnivel.",
+      "body": "- Mientras juegas ganas experiencia de nivel (la barra de abajo).\n- Cuando se llena, escribe `/comprarnivel` para subir de nivel.\n- Muchas cosas piden nivel: trabajos (mira el nivel de cada uno), tener negocio (nivel 3) o vender (nivel 2).\n- Cada trabajo tiene además su propia experiencia (`/experiencia`).",
+      "relacionados": ["ganar-dinero", "misiones"]
+    },
+    {
+      "slug": "banco", "title": "Banco, cajeros y transferencias", "category": "Dinero",
+      "tags": "banco cajero atm depositar retirar transferir transferencia cuenta bancaria ahorro",
+      "summary": "Guarda el dinero en el banco; sácalo en cualquier cajero.",
+      "body": "- En el **banco** (Y en el mostrador) abres tu cuenta, depositas y retiras.\n- En los **cajeros** (Y) también puedes sacar y meter dinero. Búscalos en el GPS o en esta guía.\n- Desde el **teléfono** (app Banco) puedes transferir a otro jugador.\n- Algunas cosas piden tener cuenta bancaria, como vender en la notaría.",
+      "relacionados": ["ganar-dinero", "telefono"]
+    },
+    {
+      "slug": "telefono", "title": "Teléfono y números útiles", "category": "Servicios",
+      "tags": "telefono movil celular iphone llamar sms numeros 911 112 450 570 108 taxi grua mecanico ambulancia",
+      "summary": "Y o /movil abre el teléfono. 911 policía, 112 ambulancia, 450 taxi, 570 mecánico, 108 grúa.",
+      "body": "- Se compra en las **Tiendas Ara** y se abre con **Y** (si no hay nada cerca) o `/movil`.\n- **911**: policía. **112**: ambulancia (médicos y EMS). **450**: taxi. **570**: mecánico. **108**: grúa.\n- Al llamar al taxi, al mecánico o a la ambulancia, a los que estén de servicio les llega tu aviso con la distancia; cuando uno acepta te avisa quién va. Vuelve a llamar al mismo número para cancelar.\n- `/llamar [número o id]`, `/sms`, agenda de contactos, banco, GPS y más apps.",
+      "relacionados": ["vehiculos", "ems", "banco", "gps"]
+    },
+    {
+      "slug": "gps", "title": "GPS, mapa y cómo llegar a un sitio", "category": "Servicios",
+      "tags": "gps mapa ubicacion donde esta ir ruta llegar buscar lugar cancelar ruta",
+      "summary": "/gps marca el destino; /gps cancelar lo quita.",
+      "body": "- El GPS se compra en las **Tiendas Ara**.\n- `/gps`: mis lugares, mis propiedades, mis vehículos, lugares de interés y trabajos. Al elegir uno se marca el destino.\n- `/gps cancelar` (o `/gcp`) quita la ruta marcada.\n- `/mapa` muestra el mapa con los puntos.\n- En esta guía cada lugar dice su zona: búscalo por nombre (por ejemplo *gasolinera* o *hospital*).",
+      "relacionados": ["telefono", "trucos"]
+    },
+    {
+      "slug": "vehiculos", "title": "Vehículos: comprar, aparcar y cuidar tu coche", "category": "Vehículos",
+      "tags": "vehiculo coche carro auto moto comprar concesionario aparcar estacionar llaves seguro motor luces cinturon capo gasolina vender",
+      "summary": "Compra en el concesionario, aparca con /aparcar y usa el menú con N.",
+      "body": "- Se compran en los **concesionarios** (búscalos en la guía).\n- `/aparcar`: deja el coche donde está; si se destruye vuelve a aparecer ahí.\n- `/abrir` y `/cerrar` el seguro, `/llaves` para dar copias, `/motor`, `/luces`, `/cinturon` y `/capo`. Todo eso también está en el **menú del vehículo: N dentro del coche** (o `/veh`).\n- Con el **cinturón** puesto los choques hacen la mitad de daño.\n- **Gasolina**: en las gasolineras, o con un bidón y `/vertir`.\n- Si se rompe: mecánico (570), grúa (108) o un taller de jugadores.\n- **Vender**: a otro jugador (`/vender`) o al banco en la notaría del ayuntamiento (paga el 25 % del precio, 50 % con VIP).",
+      "relacionados": ["estacionamientos", "maletero", "alquiler-motos", "telefono"]
+    },
+    {
+      "slug": "estacionamientos", "title": "Estacionamientos públicos", "category": "Vehículos",
+      "tags": "estacionamiento parking garaje retirar vehiculo mis vehiculos aparcamiento",
+      "summary": "Y en el punto del estacionamiento: MIS VEHÍCULOS y RETIRAR.",
+      "body": "- Pulsa **Y** en el punto del estacionamiento: verás tus vehículos con placa, gasolina, estado y zona.\n- **Retirar** trae el vehículo a un hueco libre del estacionamiento (en los de pago se cobra).\n- `/estacionamientos` marca el más cercano en el GPS.\n- Los estacionamientos que hay ahora mismo salen en esta guía.",
+      "relacionados": ["vehiculos"]
+    },
+    {
+      "slug": "maletero", "title": "Maletero y guardar objetos en el coche", "category": "Vehículos",
+      "tags": "maletero baul guardar objetos coche inventario trunk",
+      "summary": "N detrás de tu coche abre el maletero junto al inventario.",
+      "body": "- Ponte **detrás de tu vehículo** y pulsa **N**: se abre el inventario con el maletero para pasar objetos.\n- También con `/maletero` estando cerca.\n- La policía puede revisar el maletero si el dueño está esposado.",
+      "relacionados": ["inventario", "vehiculos"]
+    },
+    {
+      "slug": "alquiler-motos", "title": "Alquiler de motos", "category": "Vehículos",
+      "tags": "alquiler alquilar rentar moto faggio renta devolver",
+      "summary": "Alquila una moto con Y en los puntos de alquiler y devuélvela con /devolver.",
+      "body": "- En un punto de alquiler pulsa **Y**, elige la moto y paga (normalmente $500).\n- `/devolver` cuando termines (conduciéndola). Después hay 2 minutos de espera para volver a alquilar.\n- Si te bajas, tienes **5 minutos** para volver a subirte; a falta de 1 minuto te avisa y después se devuelve sola.\n- Si te desconectas, la moto te espera 4 minutos.",
+      "relacionados": ["vehiculos"]
+    },
+    {
+      "slug": "propiedades", "title": "Casas y propiedades", "category": "Propiedades",
+      "tags": "casa propiedad comprar vender vivienda armario muebles decorar gobierno notaria",
+      "summary": "Compra casas, guarda objetos en el armario y véndelas a un jugador o al gobierno.",
+      "body": "- Las propiedades en venta se ven en el mapa; se compran en su puerta.\n- Dentro: armario para guardar objetos y muebles para decorar.\n- **Vender**: a otro jugador o al banco en la **notaría del ayuntamiento** (`/pvender` en el mostrador): paga el 25 % del valor (50 % con VIP). A otro jugador puedes pedir más.",
+      "relacionados": ["negocios", "vip"]
+    },
+    {
+      "slug": "negocios", "title": "Negocios de jugadores", "category": "Negocios",
+      "tags": "negocio empresa restaurante bar tienda taller comprar administrar empleados stock precios caja vender gobierno",
+      "summary": "Compra un restaurante, bar, tienda o taller y adminístralo con /negocio.",
+      "body": "- Los negocios en venta se compran con **Y** en su mostrador (nivel 3; uno por jugador, dos con VIP).\n- Los clientes compran con **Y** en el mostrador cuando está abierto. La comida va al inventario; el taller arregla el coche que esté a menos de 10 m.\n- `/negocio`: información, abrir o cerrar, horario, precios, **reponer stock** (se paga de la caja), caja (retirar o depositar), **empleados** con sueldo por hora, **mejoras** (3 niveles: más stock y más margen) y ventas.\n- Los empleados cobran de la caja cada hora conectados cerca del negocio y pueden abrir, cerrar y reponer.\n- **Vender**: a un jugador (le llega la oferta) o al gobierno, que paga entre el 40 % y el 75 % según el nivel, la antigüedad y las ventas de la semana, más el stock.",
+      "relacionados": ["ganar-dinero", "propiedades", "comida"]
+    },
+    {
+      "slug": "comida", "title": "Comida, hambre y sed", "category": "Supervivencia",
+      "tags": "comida comer hambre sed beber bebida restaurante pizza hamburguesa agua",
+      "summary": "Come y bebe para no perder vida: la comida va al inventario.",
+      "body": "- Tu personaje tiene **hambre** y **sed**: si llegan a cero empiezas a perder vida.\n- Compra en restaurantes, puestos de perritos, Tiendas Ara y negocios de jugadores. Casi toda la comida va al **inventario**: cómela cuando quieras desde `/inv` con **Usar**.\n- En los restaurantes: `/pedir` en el mostrador.",
+      "relacionados": ["inventario", "negocios"]
+    },
+    {
+      "slug": "inventario", "title": "Inventario, objetos y mochila", "category": "Inventario",
+      "tags": "inventario objetos mochila usar equipar dar tirar suelo recoger trato intercambio",
+      "summary": "N abre el inventario: usar, equipar, dar, tirar y guardar.",
+      "body": "- **N** o `/inv` abre el inventario.\n- Desde ahí: usar, equipar, dar a otro jugador, tirar y guardar.\n- Lo que tiras queda **en el suelo** y cualquiera puede recogerlo (C o H encima).\n- `/mochila` abre la mochila. El **trato** del inventario sirve para intercambiar con otro jugador de forma segura.",
+      "relacionados": ["maletero", "comida", "teclas"]
+    },
+    {
+      "slug": "rol", "title": "Comandos de rol", "category": "Rol",
+      "tags": "rol roleplay me do intentar ame low gritar susurrar ooc yo examinar descripcion",
+      "summary": "/me, /do, /intentar, /ame, /low, /g, /s, /b, /yo y /examinar.",
+      "body": "- `/me [acción]`: lo que hace tu personaje. Ej.: `/me saca su teléfono del bolsillo`.\n- `/do [texto]`: describe el entorno o una situación.\n- `/intentar [acción]`: intenta algo y sale al azar si lo consigue o falla.\n- `/ame [acción]`: acción corta encima de tu cabeza.\n- `/low` en voz baja, `/s` susurrar, `/g` gritar, `/b` fuera de rol (OOC).\n- `/yo [texto]` guarda la descripción de tu personaje; los demás la ven con `/examinar [id]`.\n- Lee las normas en la sección Reglas de la web.",
+      "relacionados": ["animaciones", "como-empezar"]
+    },
+    {
+      "slug": "animaciones", "title": "Animaciones", "category": "Rol",
+      "tags": "animaciones anim bailar sentarse saludar fumar dormir reir cruzar brazos acciones",
+      "summary": "/anim o /animaciones abre el menú; hay atajos como /bailar o /sentarse.",
+      "body": "- `/anim`, `/animaciones` o `/acciones` abren el menú por categorías.\n- Atajos: `/saludar`, `/sentarse`, `/bailar`, `/comer`, `/beber`, `/dormir`, `/reir`, `/cruzarbrazos`, `/rendirse`, `/llorar` y más (busca *animación* en esta guía).\n- `/parar` o moverte quita la animación.",
+      "relacionados": ["rol"]
+    },
+    {
+      "slug": "facciones", "title": "Facciones: cómo entrar y qué hacen", "category": "Facciones",
+      "tags": "faccion facciones policia lspd sheriff fbi ejercito saem gobierno citytv ems entrar unirse rangos",
+      "summary": "Policía, Sheriff, FBI, Ejército, CITYTV, Gobierno y EMS.",
+      "body": "- Facciones: **LSPD** (policía), **FBI**, **SAEM** (ejército), **LSSD** (sheriff), **CITYTV**, **Gobierno** y **EMS** (emergencias médicas).\n- Se entra cuando el staff te mete (`/setfact`) o el jefe te recluta (`/reclutar`). Pregunta en el canal de cada facción en el Discord.\n- `/fservicio` para entrar de servicio (LSSD, Gobierno, CITYTV y EMS), radio con `!` o `/fr`, `/garaje` en el garaje de la facción.\n- Los rangos de cada facción salen en esta guía (busca el nombre de la facción).",
+      "relacionados": ["ems", "discord-verificacion"]
+    },
+    {
+      "slug": "ems", "title": "Emergencias médicas: heridos, 112 y EMS", "category": "Facciones",
+      "tags": "ems medico ambulancia herido curar revivir hospital 112 emergencia paramedico",
+      "summary": "Si te hieren, llama al 112. Médicos y EMS te atienden con /curar.",
+      "body": "- Si quedas herido, llama al **112** desde el teléfono: a los médicos y a la EMS de servicio les llega tu aviso con la distancia.\n- Si nadie te atiende, terminas en el hospital.\n- La **EMS** es la facción 7: de servicio (`/fservicio` o `/ems`) ven a los heridos en el mapa, los atienden con `/curar` y tienen ambulancias en el garaje del hospital All Saints.\n- También existe el trabajo de **médico**, que se consigue en los hospitales.",
+      "relacionados": ["facciones", "telefono"]
+    },
+    {
+      "slug": "ilegal", "title": "Actividades ilegales y dinero negro", "category": "Ilegal",
+      "tags": "ilegal ladron robar atracar dinero negro lavar traficante semillas droga mercado negro crimen",
+      "summary": "Ladrón, traficante y dinero negro, con riesgo de que llegue la policía.",
+      "body": "- **Ladrón** (se consigue en el Bar El Túnel): `/robar` a jugadores, `/palanca` para coches cerrados, `/volarcajero` (nivel 2) y `/atracar` tiendas (nivel 3, con `/capucha`). Cada robo avisa a la policía.\n- **Traficante**: El Chino vende semillas de noche (22:00 a 05:00) con `/semillasnoche`; se siembran al aire libre con `/sembrar`.\n- Lo robado es **dinero negro**: `/dineronegro` dice cuánto llevas y dónde se lava (`/lavar`, con comisión).\n- Todo esto es rol: respeta las normas y acepta las consecuencias.",
+      "relacionados": ["ganar-dinero", "facciones"]
+    },
+    {
+      "slug": "vip", "title": "VIP, Socio y CityCoins", "category": "Cuenta",
+      "tags": "vip socio citycoins coins tienda comprar beneficios premium donar tebex",
+      "summary": "El VIP mensual da ventajas; las CityCoins se usan en la tienda.",
+      "body": "- **VIP** (mensual): entre otras cosas, más vehículos, dos negocios y mejor precio al vender al banco (50 % en vez de 25 %).\n- **Socio** (anual): el rango por encima del VIP.\n- **CityCoins**: la moneda de la tienda del servidor.\n- Se compran en la tienda oficial que se anuncia en el Discord. Las dudas, por ticket.",
+      "relacionados": ["discord-verificacion", "ayuda-soporte"]
+    },
+    {
+      "slug": "discord-verificacion", "title": "Discord, verificación y roles", "category": "Cuenta",
+      "tags": "discord verificar verificacion vincular roles rango cuenta enlazar",
+      "summary": "Vincula tu cuenta en sampcity.app/verificar y los roles se ponen solos.",
+      "body": "- Entra en **sampcity.app/verificar**, inicia sesión con tu cuenta del juego y pulsa **Vincular con Discord**.\n- Después, en el canal de verificación del Discord, pulsa **Ya me vinculé**.\n- Tus rangos del juego (staff, facción, banda, VIP, nivel, logros…) se copian a Discord en segundos.\n- `/rango` en el juego muestra tus rangos y cuál se ve sobre tu cabeza.",
+      "relacionados": ["como-empezar", "facciones", "ayuda-soporte"]
+    },
+    {
+      "slug": "ayuda-soporte", "title": "Ayuda, dudas y reportes", "category": "Ayuda",
+      "tags": "ayuda soporte duda pregunta reportar reporte ticket staff admin problema bug",
+      "summary": "/duda o /soporte para preguntar, /reportar para avisar al staff y tickets en Discord.",
+      "body": "- `/duda [pregunta]` (o `/soporte`): llega a quien atiende las dudas. Activa el canal con `/dudas`.\n- `/reportar`: avisa al staff de un jugador o un problema.\n- `/ayuda` y `/comandos` te enseñan los comandos dentro del juego.\n- Para cosas largas (bugs, apelaciones, compras) abre un **ticket** en el Discord.",
+      "relacionados": ["staff", "discord-verificacion"]
+    },
+    {
+      "slug": "staff", "title": "Staff y niveles de administración", "category": "Ayuda",
+      "tags": "staff admin administrador moderador ayudante soporte fundador rangos niveles",
+      "summary": "Del 1 Soporte al 9 Fundador.",
+      "body": "- **1** Soporte · **2** Ayudante · **3** Moderador · **4** Moderador Global · **5** Administrador · **6** Encargado de Staff · **7** Desarrollador · **8** Co-Fundador · **9** Fundador.\n- El equipo actual sale en la sección Staff de la web. Para entrar, Solicitar ser Staff.",
+      "relacionados": ["ayuda-soporte"]
+    },
+    {
+      "slug": "trucos", "title": "Trucos y consejos", "category": "Trucos",
+      "tags": "trucos consejos tips secretos atajos ayuda rapido novato",
+      "summary": "Atajos que mucha gente no conoce.",
+      "body": "- **Y** sin nada cerca abre el teléfono: no hace falta escribir `/movil`.\n- **N dentro del coche** abre el menú del vehículo; **N detrás** abre el maletero.\n- `/gps cancelar` quita la ruta cuando ya llegaste.\n- Ponte el **cinturón** antes de un viaje largo: los choques hacen la mitad de daño.\n- Haz tus **misiones diarias** mientras trabajas: se cumplen solas.\n- **Aparca** tu coche con `/aparcar` donde quieras que vuelva a salir.\n- Guarda el dinero en el **banco** antes de meterte en líos.\n- Si alguien tiene un ID igual a un número de servicio, `/llamar 112` igual llama a la ambulancia.",
+      "relacionados": ["teclas", "vehiculos", "misiones"]
+    },
+    {
+      "slug": "eventos-logros", "title": "Eventos, logros y premios diarios", "category": "Cuenta",
+      "tags": "eventos logros calendario premios diarios campeon insignia x2 fin de semana",
+      "summary": "Eventos del staff, logros con premio y el calendario diario.",
+      "body": "- **Eventos**: cuando el staff abre uno, `/unirseevento`. El ganador recibe premio y la insignia Campeón de eventos.\n- **Logros** (`/logros`): metas con premio que también dan roles en Discord.\n- **Calendario** (`/calendario`): premio por conectarte cada día.\n- **Fin de semana x2** (`/x2`).",
+      "relacionados": ["misiones", "discord-verificacion"]
+    },
+    {
+      "slug": "bandas", "title": "Bandas", "category": "Facciones",
+      "tags": "banda bandas pandilla crew gang territorio lider miembros",
+      "summary": "Grupos de jugadores con sus rangos, territorios y rol en Discord.",
+      "body": "- Las bandas tienen sus propios rangos y su rol en Discord (se crea solo).\n- Busca *banda* en esta guía para ver sus comandos.",
+      "relacionados": ["facciones", "ilegal"]
+    }
+  ]
+}
