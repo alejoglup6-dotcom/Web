@@ -1,9 +1,9 @@
 // Página: Reels (/reels) · videos de la comunidad a pantalla completa: deslizar para ver más, me gusta, comentarios, compartir, guardar y •••
 // Parámetros: ?r=id (abre ese reel primero) · ?u=Nombre (solo los de ese jugador) · ?saved=1 (mis guardados) · ?c=1 (abre los comentarios) · ?nuevo=1 (crear reel)
-Object.assign(EN,{"Reels":"Reels","Reels de":"Reels by","Crear reel":"Create reel","Elegir video":"Choose a video","Describe tu reel…":"Describe your reel…","Compartir":"Share","Guardar":"Save","Guardado":"Saved","Quitar de guardados":"Remove from saved","Copiar enlace":"Copy link","Ver perfil":"View profile","Eliminar reel":"Delete reel","¿Eliminar este reel?":"Delete this reel?","Agregar":"Add","Aún no hay reels.":"No reels yet.","¡Sube el primero!":"Upload the first one!","Comentarios":"Comments","Escribe un comentario…":"Write a comment…","Sé el primero en comentar.":"Be the first to comment.","Subiendo video":"Uploading video","Reel publicado":"Reel published","Activar sonido":"Unmute","Silenciar":"Mute","Ver más":"See more","Usa un video MP4":"Use an MP4 video","El video pesa demasiado":"The video is too large","No pude leer ese video":"I couldn't read that video","El video dura más de":"The video is longer than","segundos":"seconds","Leyendo video…":"Reading video…","Volver":"Back"});
+Object.assign(EN,{"Reels":"Reels","Reels de":"Reels by","Crear reel":"Create reel","Elegir video":"Choose a video","Describe tu reel…":"Describe your reel…","Compartir":"Share","Guardar":"Save","Guardado":"Saved","Quitar de guardados":"Remove from saved","Copiar enlace":"Copy link","Ver perfil":"View profile","Eliminar reel":"Delete reel","¿Eliminar este reel?":"Delete this reel?","Agregar":"Add","Aún no hay reels.":"No reels yet.","¡Sube el primero!":"Upload the first one!","Comentarios":"Comments","Escribe un comentario…":"Write a comment…","Sé el primero en comentar.":"Be the first to comment.","Subiendo video":"Uploading video","Reel publicado":"Reel published","Activar sonido":"Unmute","Silenciar":"Mute","Ver más":"See more","Usa un video MP4":"Use an MP4 video","El video pesa demasiado":"The video is too large","No pude leer ese video":"I couldn't read that video","El video dura más de":"The video is longer than","segundos":"seconds","Leyendo video…":"Reading video…","Volver":"Back","No se pudo cargar el video. Toca para reintentar":"Couldn't load the video. Tap to retry"});
 document.body.classList.add("rl-pg");
 const QS=new URLSearchParams(location.search),RQ={u:/^\w{1,24}$/.test(QS.get("u")||"")?QS.get("u"):"",saved:QS.get("saved")==="1",start:Number(QS.get("r"))||0};
-let RL=[],RMORE=true,RLOAD=false,RACT=-1,RMUTE=true,RIO=null,RTAP=0,RTT=0,RCOM=0;
+let RL=[],RMORE=true,RLOAD=false,RACT=-1,RMUTE=true,RIO=null,RTAP=0,RTT=0,RCOM=0,RSW=0,RUNM=false,RWD=0;
 const rlq=()=>(RQ.u?"&author="+encodeURIComponent(RQ.u):"")+(RQ.saved?"&saved=1":"");
 async function rlFetch(){if(RLOAD||!RMORE)return;RLOAD=true;const last=RL.at(-1);
  const r=await api("/reels?n=8"+rlq()+(last?"&before="+last.id:RQ.start?"&start="+RQ.start:""));RLOAD=false;
@@ -16,8 +16,8 @@ async function rlFetch(){if(RLOAD||!RMORE)return;RLOAD=true;const last=RL.at(-1)
 const rlEmpty=()=>`<div class="rle" id="rle">${ic("videos")}<h3>${t("Aún no hay reels.")}</h3><p class="m">${t("¡Sube el primero!")}</p>${U?`<button class="btn p" type="button" onclick="nuevoReel()">${ic("mas")} ${t("Crear reel")}</button>`:""}</div>`;
 function rlItem(r,i){const m=r.media[0]||{};
  return `<section class="rl" id="rl${i}" data-i="${i}" aria-label="Reel ${i+1}">
- <video class="rlv" playsinline loop preload="none" muted poster="${m.thumb?"/media/"+m.thumb:""}" data-src="/media/${m.id}"></video>
- <div class="rlt" onclick="rlTap(${i})"></div><span class="rlpp" aria-hidden="true">${ic("play")}</span><span class="rlh" aria-hidden="true">${ic("like")}</span>
+ <video class="rlv" playsinline webkit-playsinline loop preload="none" muted disablepictureinpicture disableremoteplayback poster="${m.thumb?"/media/"+m.thumb:""}" data-src="/media/${m.id}"></video>
+ <div class="rlt" onclick="rlTap(${i})"></div><span class="rlpp" aria-hidden="true">${ic("play")}</span><span class="rlsp" aria-hidden="true"></span><button type="button" class="rler" onclick="rlRetry(${i},true)">${t("No se pudo cargar el video. Toca para reintentar")}</button><span class="rlh" aria-hidden="true">${ic("like")}</span>
  <div class="rlr">
   <button type="button" id="rk${i}" class="${r.mine>0?"on":""}" onclick="rlLike(${i})" aria-label="${t("Me gusta")}">${ic("like")}<span>${cnt(r.likes)}</span></button>
   <button type="button" id="rc${i}" onclick="rlCom(${i})" aria-label="${t("Comentarios")}">${ic("discord_comentarios")}<span>${cnt(r.comments)}</span></button>
@@ -36,25 +36,56 @@ async function pg_reels(){RL=[];RMORE=true;RLOAD=false;RACT=-1;RIO?.disconnect()
  <div class="rls" id="rls"></div>`}
 async function rlInit(){
  if(!$("#rlc"))document.body.insertAdjacentHTML("beforeend",`<div class="rlc" id="rlc" aria-hidden="true"></div>`); // fuera de #main: así queda encima de la barra inferior
- RIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&e.intersectionRatio>=.6)rlSet(Number(e.target.dataset.i))}),{root:$("#rls"),threshold:[.6]});
+ // al deslizar rápido no se activan (ni se cargan) los reels que solo pasan por la pantalla
+ RIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&e.intersectionRatio>=.6){const i=Number(e.target.dataset.i);clearTimeout(RSW);RSW=setTimeout(()=>rlSet(i),RACT<0?0:140)}}),{root:$("#rls"),threshold:[.6]});
+ clearInterval(RWD);RWD=setInterval(rlWatch,1000);
  await rlFetch();
  if(QS.get("c")==="1"&&RL.length)rlCom(0);
  if(QS.get("nuevo")==="1"&&U)nuevoReel()}
-// reel activo: reproduce ese, carga el video de los vecinos y pausa el resto
+// ---- Reproducción: solo hay 2-3 videos cargados a la vez (el activo y sus vecinos); los demás se liberan ----
+// Los celulares tienen pocos decodificadores de video: si cada reel visto se queda cargado, a los pocos se congela todo.
+const rlV=i=>$("#rl"+i+" video");
+function rlLoad(v,pre){if(!v)return;if(!v.getAttribute("src")){v.preload=pre;v.src=v.dataset.src}else if(pre==="auto")v.preload="auto"}
+function rlFree(v){if(v&&v.getAttribute("src")){v.pause();v.removeAttribute("src");v.load()}} // suelta el decodificador y lo que llevaba en memoria
 function rlSet(i){if(i===RACT)return;RACT=i;
  document.querySelectorAll("#rls .rl").forEach(el=>{const k=Number(el.dataset.i),v=el.querySelector("video");
-  if(Math.abs(k-i)<=1&&!v.src)v.src=v.dataset.src,v.preload=k===i?"auto":"metadata";
-  if(k!==i){v.pause();el.classList.remove("pz")}});
- const v=$("#rl"+i+" video");if(v){v.muted=RMUTE;v.currentTime=0;v.play().catch(()=>{if(!v.muted){RMUTE=true;v.muted=true;rlMuteIc();v.play().catch(()=>{})}});v.ontimeupdate=()=>{const p=$("#rp"+i);if(p&&v.duration)p.style.width=v.currentTime/v.duration*100+"%"}}
+  if(k!==i){v.pause();el.classList.remove("pz","ld","er");if(Math.abs(k-i)>1)rlFree(v)}});
+ const v=rlV(i),el=$("#rl"+i);if(!v)return;
+ rlLoad(v,"auto");v.muted=RMUTE;el.dataset.rt=0;
+ if(v.currentTime>0&&v.readyState>0)try{v.currentTime=0}catch{}
+ v.onwaiting=()=>el.classList.add("ld");v.onplaying=()=>{el.classList.remove("ld","er");el.dataset.rt=0};
+ v.oncanplay=()=>el.classList.remove("ld");
+ v.onerror=()=>{if(RACT===i)setTimeout(()=>rlRetry(i),800)};
+ v.ontimeupdate=()=>{const p=$("#rp"+i);if(p&&v.duration)p.style.width=v.currentTime/v.duration*100+"%"};
+ // el siguiente empieza a cargarse cuando el actual ya está sonando (no le quita velocidad)
+ const pre=()=>{if(RACT===i){rlLoad(rlV(i+1),"auto");rlLoad(rlV(i-1),"metadata")}};
+ if(v.readyState>=3)pre();else v.addEventListener("canplaythrough",pre,{once:true}),setTimeout(pre,4000);
+ rlPlay(i);
  const r=RL[i];if(r)try{const u=new URL(location.href);u.searchParams.set("r",r.id);u.searchParams.delete("c");u.searchParams.delete("nuevo");history.replaceState(null,"",u)}catch{}
  if(i>=RL.length-3)rlFetch()}
+function rlPlay(i){const v=rlV(i),el=$("#rl"+i);if(!v)return;if(v.readyState<3)el.classList.add("ld");
+ v.play().then(()=>el.classList.remove("pz")).catch(e=>{if(RACT!==i||e.name==="AbortError")return;
+  if(!v.muted){RMUTE=true;v.muted=true;rlMuteIc();return rlPlay(i)} // sin permiso para sonar: sigue en silencio
+  if(e.name!=="NotAllowedError")return rlRetry(i); // formato o red: se reintenta (y si no hay caso, aviso con «toca para reintentar»)
+  el.classList.add("pz");el.classList.remove("ld")})} // el navegador no deja reproducir solo (ahorro de batería): toca para ver
+// si el video se queda trabado (o falla la conexión) se vuelve a pedir desde donde iba
+function rlRetry(i,manual){const v=rlV(i),el=$("#rl"+i);if(!v||RACT!==i)return;const n=manual?0:Number(el.dataset.rt||0)+1;el.dataset.rt=n;
+ if(n>3){el.classList.add("er");el.classList.remove("ld");return}
+ el.classList.remove("er");const at=v.currentTime||0;v.removeAttribute("src");v.load();v.preload="auto";v.src=v.dataset.src;
+ if(at>0)v.addEventListener("loadedmetadata",()=>{try{v.currentTime=at}catch{}},{once:true});rlPlay(i)}
+let RLT=-1,RLS=0;
+function rlWatch(){const i=RACT,v=rlV(i),el=$("#rl"+i);if(!v||document.hidden||$("#sh.on")||el.classList.contains("pz")||el.classList.contains("er"))return void(RLS=0);
+ if(v.paused&&v.readyState>=2){rlPlay(i);return}
+ if(v.currentTime===RLT&&!v.paused){if(++RLS>=5){RLS=0;rlRetry(i)}}else RLS=0; // 5 s sin avanzar: está trabado
+ RLT=v.currentTime}
 function rlMuteIc(){const b=$("#rlmu");if(b){b.innerHTML=ic(RMUTE?"silencio":"sonido");b.setAttribute("aria-label",t(RMUTE?"Activar sonido":"Silenciar"))}}
-function rlMute(){RMUTE=!RMUTE;document.querySelectorAll("#rls video").forEach(v=>v.muted=RMUTE);rlMuteIc()}
+function rlMute(){RMUTE=!RMUTE;RUNM=true;document.querySelectorAll("#rls video").forEach(v=>v.muted=RMUTE);rlMuteIc()}
 // un toque pausa/reanuda; dos toques seguidos dan me gusta
 function rlTap(i){const now=Date.now();clearTimeout(RTT);
  if(now-RTAP<300){RTAP=0;const el=$("#rl"+i);el.classList.remove("hrt");void el.offsetWidth;el.classList.add("hrt");if(!(RL[i].mine>0))rlLike(i);return}
- RTAP=now;RTT=setTimeout(()=>{const el=$("#rl"+i),v=el.querySelector("video");if(RMUTE&&!v.paused&&!el.dataset.u){el.dataset.u=1;rlMute();return} // el primer toque activa el sonido
-  if(v.paused){v.play().catch(()=>{});el.classList.remove("pz")}else{v.pause();el.classList.add("pz")}},300)}
+ RTAP=now;RTT=setTimeout(()=>{const el=$("#rl"+i),v=el.querySelector("video");if(el.classList.contains("er"))return rlRetry(i,true);
+  if(!RUNM&&RMUTE&&!v.paused){rlMute();return} // el primer toque activa el sonido
+  if(v.paused||el.classList.contains("pz")){el.classList.remove("pz");rlPlay(i)}else{v.pause();el.classList.add("pz")}},300)}
 async function rlLike(i){if(!U)return login();const r=RL[i],x=await api("/posts/"+r.id+"/like",{method:"POST",body:{}});if(!x.ok)return toast(x.d.error||"Error");
  r.mine=x.d.liked?1:0;r.likes=x.d.likes;const b=$("#rk"+i);b.classList.toggle("on",x.d.liked);b.querySelector("span").textContent=cnt(r.likes)}
 async function rlSave(i){if(!U)return login();const r=RL[i],x=await api("/posts/"+r.id+"/save",{method:"POST",body:{}});if(!x.ok)return toast(x.d.error||"Error");
@@ -66,7 +97,7 @@ async function rlAdd(i){const r=RL[i],b=$("#rf"+i);b.disabled=true;const x=await
 function rlMenu(i){const r=RL[i],own=U&&(U.name===r.author||U.canPost);
  modal(`<div class="mm"><button class="btn" onclick="cerrar();rlSave(${i})">${ic("guardar")} ${t(r.saved>0?"Quitar de guardados":"Guardar")}</button><button class="btn" onclick="cerrar();rlCopy(${i})">${ic("compartir_vincular")} ${t("Copiar enlace")}</button><a class="btn" href="${lk(r.author)}">${ic("usuario_perfil")} ${t("Ver perfil")}</a>${own?`<button class="btn" onclick="cerrar();rlDel(${i})">${t("Eliminar reel")}</button>`:""}<button class="btn" onclick="cerrar()">${t("Cerrar")}</button></div>`)}
 async function rlDel(i){if(!confirm(t("¿Eliminar este reel?")))return;const x=await api("/posts/"+RL[i].id,{method:"DELETE"});if(!x.ok)return toast(x.d.error||"Error");
- const el=$("#rl"+i);el.querySelector("video").pause();el.remove();toast(t("Eliminado"))}
+ const el=$("#rl"+i);rlFree(el.querySelector("video"));el.remove();toast(t("Eliminado"))}
 // ---- Comentarios (hoja desde abajo) ----
 async function rlCom(i){RCOM=i;const c=$("#rlc");c.classList.add("on");c.setAttribute("aria-hidden","false");
  c.innerHTML=`<div class="rlch"><b>${t("Comentarios")}</b><button type="button" class="x" onclick="rlComX()" aria-label="${t("Cerrar")}">${ic("cerrar")}</button></div><div class="rlcl" id="rlcl"><div class="sk" style="height:3rem"></div></div>${U?`<div class="rlci">${skin(U.skin,U.name)}<input id="rlci" data-mn maxlength="300" placeholder="${t("Escribe un comentario…")}" aria-label="${t("Escribe un comentario…")}"><button class="btn p s" type="button" onclick="rlSend()">${t("Enviar")}</button></div>`:`<div class="rlci"><button class="btn p s" type="button" onclick="login()">${t("Iniciar sesión")}</button></div>`}`;
@@ -77,7 +108,7 @@ async function rlList(){const r=RL[RCOM],x=await api("/posts/"+r.id+"/comments")
  l.innerHTML=x.d.map(c=>`<div class="rlcm">${skin(null,c.author)}<div><div class="rlbb"><a href="${lk(c.author)}"><b>${nom(c.author)}</b></a><p>${linkM(c.body)}</p></div><small>${agoS(c.created_at)}${c.del?` · <button class="lk" type="button" onclick="rlDelC(${c.id})">${t("borrar")}</button>`:""}</small></div></div>`).join("")||`<p class="m rlc0">${t("Sé el primero en comentar.")}</p>`}
 async function rlSend(){const i=$("#rlci"),v=i.value.trim();if(!v)return;i.disabled=true;const x=await api("/posts/"+RL[RCOM].id+"/comments",{method:"POST",body:{body:v}});i.disabled=false;if(!x.ok)return toast(x.d.error||"Error");i.value="";await rlList();const l=$("#rlcl");l.scrollTop=l.scrollHeight}
 async function rlDelC(c){await api("/posts/"+RL[RCOM].id+"/comments/"+c,{method:"DELETE"});rlList()}
-const cerrarHoja0=cerrarHoja;cerrarHoja=function(){cerrarHoja0();const el=$("#rl"+RACT);if(el&&!el.classList.contains("pz"))el.querySelector("video").play().catch(()=>{})}; // al cerrar la hoja sigue el reel
+const cerrarHoja0=cerrarHoja;cerrarHoja=function(){cerrarHoja0();const el=$("#rl"+RACT);if(el&&!el.classList.contains("pz"))rlPlay(RACT)}; // al cerrar la hoja sigue el reel
 // ---- Crear reel: elegir video, descripción y subida con barra de progreso ----
 function nuevoReel(){if(!U)return login();HS={};const s=INFO.reelSecs||90,mb=INFO.reelMax||60;document.querySelectorAll("#rls video").forEach(v=>v.pause());
  hoja(hdr("Crear reel",`<button class="btn p s" type="button" id="rnb" disabled onclick="rlPub()">${t("Compartir")}</button>`)+`<div class="shb"><input type="file" id="rnf" accept="video/mp4,video/quicktime,video/webm" hidden onchange="rlPick(this)"><button type="button" class="hs-p rlnp" id="rnp" onclick="$('#rnf').click()">${ic("videos")}<b>${t("Elegir video")}</b><small>MP4 · máx. ${s} s · ${mb} MB</small></button><textarea id="rnc" data-mn maxlength="500" placeholder="${t("Describe tu reel…")}" aria-label="${t("Describe tu reel…")}"></textarea><div class="rlup" id="rnu" hidden><i></i></div><div class="msg" id="rnm" role="alert"></div></div>`)}
@@ -98,6 +129,6 @@ async function rlPub(){const b=$("#rnb"),m=$("#rnm"),bar=$("#rnu"),er=r=>{m.clas
 // teclado (flechas, m = sonido, espacio = pausa) y pausa al salir de la pestaña
 addEventListener("keydown",e=>{if(/INPUT|TEXTAREA/.test(document.activeElement.tagName)||$("#mod.on")||$("#sh.on"))return;const box=$("#rls");if(!box)return;
  if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();$("#rl"+Math.max(0,RACT+(e.key==="ArrowDown"?1:-1)))?.scrollIntoView({behavior:"smooth"})}
- else if(e.key==="m")rlMute();else if(e.key===" "){e.preventDefault();const v=$("#rl"+RACT+" video");if(v){if(v.paused){v.play().catch(()=>{});$("#rl"+RACT).classList.remove("pz")}else{v.pause();$("#rl"+RACT).classList.add("pz")}}}else if(e.key==="Escape")rlComX()});
-document.addEventListener("visibilitychange",()=>{const v=$("#rl"+RACT+" video");if(!v)return;if(document.hidden)v.pause();else if(!$("#rl"+RACT).classList.contains("pz"))v.play().catch(()=>{})});
+ else if(e.key==="m")rlMute();else if(e.key===" "){e.preventDefault();const v=rlV(RACT),el=$("#rl"+RACT);if(v){if(v.paused){el.classList.remove("pz");rlPlay(RACT)}else{v.pause();el.classList.add("pz")}}}else if(e.key==="Escape")rlComX()});
+document.addEventListener("visibilitychange",()=>{const v=rlV(RACT);if(!v)return;if(document.hidden)v.pause();else if(!$("#rl"+RACT).classList.contains("pz"))rlPlay(RACT)});
 mountPage(pg_reels);

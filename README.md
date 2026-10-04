@@ -7,7 +7,7 @@
 - Login: usa el mismo nombre y contraseña del juego (bcrypt o SHA256+sal, como snrp.pwn).
 - La web solo crea la tabla `web_posts`; las demás (`player`, `discord_links`, `crews`) ya existen y solo se leen,
   salvo `discord_links`, donde se inserta/borra la vinculación.
-- Noticias/actualizaciones/FAQ: las publica quien tenga `admin_level` >= POST_MIN_LEVEL.
+- Noticias/actualizaciones/FAQ: las publica quien tenga `admin_level` >= POST_MIN_LEVEL (por defecto 5 = Administrador, en la escala de staff 0-9 del 04-oct-2026; si en Render está en 4, cámbialo a 5).
 
 - Fotos: el staff las publica por enlace https:// (tipo `photo`), sin subir archivos.
 - `SERVER_IP` (opcional) en el `.env` muestra el botón "Copiar IP"; `/api/info` solo da cifras públicas.
@@ -99,3 +99,9 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - **Solicitudes** (`/amigos`): filas como Facebook (foto grande, amigos en común con sus caras, «hace 16 sem», Confirmar/Eliminar), «Ver todas», pestañas Sugerencias / Tus amigos y buscador (lupa).
 - **Notificaciones**: secciones Nuevas (sin leer) / Hoy / Anteriores; «Marcar todo como leído» y «Ver solo no leídas» están en el botón •••. Los avisos de reels abren el reel.
 - **Perfil** (`/perfil` y `/u/Nombre`, función `perfilFB()` en `core.js`): portada, foto redonda, rango, amigos · publicaciones · reels, botones (Agregar a historia / Crear reel, o Agregar a amigos) y pestañas Todo · Reels · Fotos · Más (Amigos, Guardados). La sección **Resumen** muestra los datos de la cuenta: en tu perfil nivel, reputación, tiempo jugado, efectivo, banco, facción, teléfono, arrestos, registro, última conexión y Discord; en el de otros solo los datos públicos.
+
+## Reels: rendimiento (videos que se traban o no cargan)
+- En el celular solo hay 2-3 videos cargados a la vez (el que ves y sus vecinos); los demás se liberan. El siguiente empieza a cargarse cuando el actual ya está sonando. Al deslizar rápido no se cargan los que solo pasan por la pantalla.
+- Si un video se queda quieto 5 s o falla la conexión, se vuelve a pedir desde donde iba (hasta 3 veces); después aparece «Toca para reintentar». Mientras carga se ve un círculo girando.
+- Servidor: los MP4 se guardan con el índice al principio («faststart»), así empiezan a reproducirse sin bajar el final del archivo. Los trozos de video más vistos quedan en memoria (`MEDIA_CACHE_MB`, por defecto 96) y el navegador guarda los videos en su caché. La conexión a MySQL usa hasta `MYSQL_POOL` conexiones (por defecto 10).
+- **Conversión con ffmpeg** (dependencia opcional `ffmpeg-static`, se instala con `npm install`; o `FFMPEG_PATH`, o el `ffmpeg` del sistema): los reels que pesan más de `REEL_MAX_KBPS` (por defecto 2500 kbps) o que no son MP4 se convierten en segundo plano a MP4 H.264 de máx. 1280 px (~2 Mbps). El reel sale al instante con el original y luego se cambia por el liviano; el original se borra a los 30 min. Se apaga con `REEL_TRANSCODE=0`. Al arrancar, el registro dice si ffmpeg está disponible.
