@@ -492,3 +492,72 @@ body.has-nav .rls{bottom:calc(var(--nav) + env(safe-area-inset-bottom))}
 .gd-kinds button{flex-direction:row;align-items:center;flex-wrap:wrap}
 .gd-kinds small{margin-left:auto}
 @media(max-width:520px){.gd-h{grid-template-columns:1fr auto}.gd-k{grid-column:1/3}.gd-s{grid-column:1/3}.gd-st{margin-left:0}}
+
+/* ===== Glassmorphism + Neumorfismo (combinados) =====
+   Paneles = cristal esmerilado sobre luces rojas difuminadas.
+   Controles dentro del cristal = relieve suave (botones, inputs, fichas). */
+:root{
+ --gl:rgba(34,22,28,.52);--gl2:rgba(34,22,28,.72);--gl-b:rgba(255,255,255,.13);--gl-hi:rgba(255,255,255,.10);
+ --gl-f:blur(16px) saturate(150%);--gl-sh:0 .8rem 2rem rgba(0,0,0,.35);
+ --nu:#1f1519;--nu-d:rgba(0,0,0,.55);--nu-l:rgba(255,255,255,.055);
+ --nu-up:.28rem .28rem .7rem var(--nu-d),-.22rem -.22rem .6rem var(--nu-l);
+ --nu-dn:inset .22rem .22rem .5rem var(--nu-d),inset -.18rem -.18rem .45rem var(--nu-l);
+ --nu-b:rgba(255,255,255,.06)}
+:root[data-theme=light]{
+ --gl:rgba(255,255,255,.55);--gl2:rgba(255,255,255,.8);--gl-b:rgba(255,255,255,.8);--gl-hi:rgba(255,255,255,.9);--gl-sh:0 .8rem 2rem rgba(158,21,15,.12);
+ --nu:#f3e8eb;--nu-d:rgba(168,120,130,.38);--nu-l:rgba(255,255,255,.95);--nu-b:rgba(255,255,255,.6)}
+
+/* Luces ambientales (lo que el cristal desenfoca) */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+ background:radial-gradient(26rem 26rem at 12% 8%,rgba(232,57,47,.38),transparent 70%),
+ radial-gradient(30rem 30rem at 92% 30%,rgba(158,21,15,.42),transparent 70%),
+ radial-gradient(24rem 24rem at 30% 95%,rgba(245,157,153,.22),transparent 70%)}
+:root[data-theme=light] body::before{background:radial-gradient(26rem 26rem at 12% 8%,rgba(232,57,47,.22),transparent 70%),
+ radial-gradient(30rem 30rem at 92% 30%,rgba(245,157,153,.38),transparent 70%),radial-gradient(24rem 24rem at 30% 95%,rgba(192,49,42,.16),transparent 70%)}
+
+/* 1) CRISTAL: contenedores */
+.top,.card,.rg,.nc,.lgn,.st,.pf,.dr aside,.fbp,.fcard,.toast,.up,.mq{
+ background:var(--gl);border-color:var(--gl-b);
+ -webkit-backdrop-filter:var(--gl-f);backdrop-filter:var(--gl-f);
+ box-shadow:var(--gl-sh),inset 0 1px 0 var(--gl-hi)}
+.top{background:var(--gl2);box-shadow:0 .4rem 1.4rem rgba(0,0,0,.25),inset 0 -1px 0 var(--gl-hi)}
+.dr aside{background:var(--gl2)}
+.modal{background:rgba(8,4,6,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.modal .card{background:var(--gl2)}
+.hero{border-color:var(--gl-b);box-shadow:var(--gl-sh),inset 0 1px 0 var(--gl-hi)}
+.wait{border-color:var(--gl-b);-webkit-backdrop-filter:var(--gl-f);backdrop-filter:var(--gl-f)}
+.cover{background:linear-gradient(transparent,rgba(24,17,21,.55)),url(/assets/fondo.webp) center/cover}
+
+/* 2) NEUMORFISMO: controles en relieve dentro del cristal */
+.btn,.fbc,.fpl button,.chip,.pill{background:var(--nu);border:1px solid var(--nu-b);box-shadow:var(--nu-up)}
+.btn.p{background:linear-gradient(145deg,var(--rojo),var(--gr));border-color:rgba(255,255,255,.18);
+ box-shadow:.28rem .28rem .7rem var(--nu-d),-.18rem -.18rem .5rem var(--nu-l),inset 0 1px 0 rgba(255,255,255,.28)}
+.btn:active,.fbc:active,.btn.on,.fpl button.on{box-shadow:var(--nu-dn);transform:none}
+.btn.p:active{box-shadow:inset .2rem .2rem .5rem rgba(0,0,0,.45)}
+.btn[disabled]{box-shadow:none}
+.chip{color:var(--t)}
+
+/* Inputs: hundidos */
+input,textarea,.fi,.fbf input{background:var(--nu);border:1px solid var(--nu-b);box-shadow:var(--nu-dn)}
+.fi input{box-shadow:none;border:0;background:none}
+input:focus,textarea:focus,.fi:focus-within,.fbf input:focus{border-color:var(--rojo);
+ box-shadow:var(--nu-dn),0 0 0 3px rgba(232,57,47,.25)}
+
+/* Fichas internas: unas en relieve, otras hundidas */
+.kv div,.stf>div,.mc,.rk>div,.gal button,.fgrid>*{background:var(--nu);border:1px solid var(--nu-b);box-shadow:var(--nu-up)}
+.cmt,.gd-use code,.nt{background:var(--nu);border-color:var(--nu-b);box-shadow:var(--nu-dn)}
+.menu a{border:1px solid transparent}
+.menu a:hover{background:var(--nu);box-shadow:var(--nu-up)}
+.menu a.on{background:var(--nu);box-shadow:var(--nu-dn),inset 3px 0 var(--rojo);color:var(--t)}
+.av{box-shadow:var(--nu-up)}
+.dot.on{box-shadow:0 0 .5rem #2ecc71}
+
+@media(hover:hover){.btn:hover,.fbc:hover{box-shadow:.34rem .34rem .9rem var(--nu-d),-.26rem -.26rem .7rem var(--nu-l)}
+ .btn.p:hover{box-shadow:0 .4rem 1.2rem rgba(232,57,47,.4),inset 0 1px 0 rgba(255,255,255,.3)}
+ .card.post:hover,.stf>div:hover{box-shadow:var(--gl-sh),inset 0 1px 0 var(--gl-hi)}}
+
+/* Móviles: menos desenfoque para que vaya fluido */
+@media(max-width:719px){:root{--gl-f:blur(10px) saturate(140%)}}
+/* Sin soporte o con transparencia reducida: fondos sólidos */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--gl:rgba(24,17,21,.94);--gl2:rgba(24,17,21,.97)}:root[data-theme=light]{--gl:rgba(255,255,255,.96);--gl2:#fff}}
+@media(prefers-reduced-transparency:reduce){:root{--gl:#181115;--gl2:#181115;--gl-f:none}:root[data-theme=light]{--gl:#fff;--gl2:#fff}}
