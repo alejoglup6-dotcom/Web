@@ -845,6 +845,15 @@ app.get("/api/launcher/news", async (req, res) => { // noticias y actualizacione
 });
 app.get("/api/launcher/donate", (req, res) => res.json([[], []])); // la tienda se abre en la web (sampcity.app/tienda)
 // Cliente de 64 bits (SAMP-Mobile 2.10, app com.sampcity.game): otro formato para lo mismo
+// Descarga de la app: sampcity.app/descargar (o /SampCity.apk) manda al APK. Por defecto es el del bucket de R2
+// (LAUNCHER_CDN/SampCity.apk); LAUNCHER_APK_URL lo cambia por otra direccion.
+app.get(["/descargar", "/SampCity.apk"], (req, res) => {
+  const cdn = (E.LAUNCHER_CDN || "").replace(/\/+$/, "");
+  const apk = E.LAUNCHER_APK_URL || (cdn ? cdn + "/SampCity.apk" : "");
+  if (!apk) return res.status(404).sendFile(path.join(__dirname, "public", "404.html"));
+  res.set("Cache-Control", "no-store");
+  res.redirect(302, apk);
+});
 app.get("/api/launcher/servers.json", async (req, res) => {
   const [ip, port] = (await launcherAddress()).split(":");
   let online = 0;

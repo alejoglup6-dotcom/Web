@@ -116,4 +116,5 @@ Cada sección es una página independiente (archivo + URL propia), ya no van tod
 - La app SampCity (launcher de SA-MP para Android) consulta al abrirse `GET /api/launcher/distribution.json` (servidor y archivos del juego), `GET /api/launcher/news` (noticias y actualizaciones de la web) y `GET /api/launcher/donate`.
 - El servidor sale de `LAUNCHER_SERVER` (por defecto `sv.sampcity.app:7781`; la web lo pasa a IP, que es lo que necesita el cliente).
 - `data/launcher-cache.json` es la lista de archivos del juego (carpeta, nombre y tamaño). Solo se manda si `LAUNCHER_CDN` apunta a donde están subidos (p. ej. un bucket de Cloudflare R2); sin eso la app no descarga nada y usa los que ya haya en el teléfono.
+- Descarga de la app: `sampcity.app/descargar` (o `/SampCity.apk`) lleva al `.apk` de `LAUNCHER_CDN/SampCity.apk`.
 - Opcionales: `LAUNCHER_VERSION` (si es mayor que la de la app, ofrece actualizarla) y `LAUNCHER_APK_URL` (dónde está el `.apk` nuevo).
