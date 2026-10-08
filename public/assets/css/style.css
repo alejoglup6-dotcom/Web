@@ -561,3 +561,6 @@ input:focus,textarea:focus,.fi:focus-within,.fbf input:focus{border-color:var(--
 /* Sin soporte o con transparencia reducida: fondos sólidos */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--gl:rgba(24,17,21,.94);--gl2:rgba(24,17,21,.97)}:root[data-theme=light]{--gl:rgba(255,255,255,.96);--gl2:#fff}}
 @media(prefers-reduced-transparency:reduce){:root{--gl:#181115;--gl2:#181115;--gl-f:none}:root[data-theme=light]{--gl:#fff;--gl2:#fff}}
+
+select{width:100%;background:var(--in);border:1px solid var(--b);border-radius:.7rem;padding:.7rem;color:var(--t);font:inherit;font-size:1rem;margin:.35rem 0}label+select{margin-top:.2rem}
+[hidden]{display:none!important}
