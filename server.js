@@ -761,7 +761,7 @@ app.get("/api/users/search", async (req, res) => {
 // ---- Guía (/guia): se arma sola con lo que vuelca el gamemode al arrancar (guide_entries), los negocios y
 // estacionamientos en vivo y los artículos de data/guia.json. Se guarda 2 minutos en memoria. ----
 const GUIA_ART = (() => { try { return JSON.parse(require("fs").readFileSync(path.join(__dirname, "data", "guia.json"), "utf8")).articulos || []; } catch (e) { console.log("[guia] data/guia.json:", e.message); return []; } })();
-const BIZ_TYPES = ["", "Restaurante", "Bar", "Tienda 24/7", "Taller"];
+const BIZ_TYPES = ["", "Restaurante", "Bar", "Tienda 24/7", "Taller", "Farmacia"];
 let GUIA = null, GUIA_AT = 0;
 const safe = async (sql, p) => { try { return await q(sql, p); } catch { return []; } }; // la tabla puede no existir todavía
 async function guia() {
