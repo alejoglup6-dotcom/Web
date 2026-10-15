@@ -1016,6 +1016,81 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_friends (a INT NOT NULL, b INT NOT NULL, status TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (a, b), KEY b (b, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_vacancies (id INT AUTO_INCREMENT PRIMARY KEY, kind VARCHAR(8) NOT NULL, title VARCHAR(80) NOT NULL, faction VARCHAR(60) NOT NULL DEFAULT '', description TEXT NOT NULL, requirements TEXT NOT NULL, questions TEXT NOT NULL, slots INT NOT NULL DEFAULT 0, min_level INT NOT NULL DEFAULT 0, need_discord TINYINT NOT NULL DEFAULT 0, open TINYINT NOT NULL DEFAULT 1, created_by VARCHAR(24) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY o (open, id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_applications (id INT AUTO_INCREMENT PRIMARY KEY, vacancy_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, answers TEXT NOT NULL, about VARCHAR(800) NOT NULL DEFAULT '', status TINYINT NOT NULL DEFAULT 0, note VARCHAR(300) NOT NULL DEFAULT '', reviewed_by VARCHAR(24) NULL, reviewed_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY vp (vacancy_id, player_id), KEY pl (player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // ---- Tienda SampCity: productos, pedidos, pagos, entregas y eventos de Tebex ----
+
+  await q(`CREATE TABLE IF NOT EXISTS store_products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tebex_package_id INT NOT NULL UNIQUE,
+    name VARCHAR(120) NOT NULL,
+    kind VARCHAR(24) NOT NULL,
+    amount INT NOT NULL DEFAULT 0,
+    active TINYINT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await q(`CREATE TABLE IF NOT EXISTS store_orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    player_id INT NOT NULL,
+    product_id INT NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    tebex_basket_id VARCHAR(64) NULL,
+    tebex_transaction_id VARCHAR(64) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY player_orders (player_id, id),
+    KEY basket (tebex_basket_id),
+    KEY transaction (tebex_transaction_id),
+    CONSTRAINT store_orders_product FOREIGN KEY (product_id) REFERENCES store_products(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await q(`CREATE TABLE IF NOT EXISTS store_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    provider VARCHAR(16) NOT NULL DEFAULT 'tebex',
+    transaction_id VARCHAR(64) NOT NULL,
+    status VARCHAR(24) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    currency VARCHAR(8) NOT NULL DEFAULT 'USD',
+    raw_event JSON NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_transaction (provider, transaction_id),
+    KEY order_payments (order_id),
+    CONSTRAINT store_payments_order FOREIGN KEY (order_id) REFERENCES store_orders(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await q(`CREATE TABLE IF NOT EXISTS store_deliveries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    player_id INT NOT NULL,
+    product_id INT NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    attempts INT NOT NULL DEFAULT 0,
+    last_error VARCHAR(500) NULL,
+    delivered_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY one_delivery_per_order (order_id),
+    KEY player_deliveries (player_id, status),
+    CONSTRAINT store_deliveries_order FOREIGN KEY (order_id) REFERENCES store_orders(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await q(`CREATE TABLE IF NOT EXISTS store_webhook_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    provider VARCHAR(16) NOT NULL DEFAULT 'tebex',
+    event_type VARCHAR(48) NOT NULL,
+    transaction_id VARCHAR(64) NULL,
+    signature_valid TINYINT NOT NULL DEFAULT 0,
+    processed TINYINT NOT NULL DEFAULT 0,
+    body JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY transaction_events (provider, transaction_id),
+    KEY event_type (event_type, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await q(`INSERT INTO store_products
+    (tebex_package_id, name, kind, amount, active)
+    VALUES (7726831, '10 Coins', 'coins', 10, 0)
+    ON DUPLICATE KEY UPDATE name = VALUES(name), kind = VALUES(kind), amount = VALUES(amount)`);
   setInterval(cleanup, 3600000).unref(); cleanup();
   console.log(FFMPEG ? `[reel] ffmpeg disponible: los reels pesados se convierten a MP4 liviano (${FFMPEG})` : "[reel] sin ffmpeg: los reels se guardan tal cual (instala ffmpeg-static para convertirlos)");
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
