@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcryptjs");
+const store = require("./store");
 
 const E = process.env;
 const BASE = (E.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
