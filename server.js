@@ -79,8 +79,19 @@ app.use((req, res, next) => {
   if (HTTPS) res.set("Strict-Transport-Security", "max-age=31536000");
   next();
 });
+// ---- Webhook de Tebex: se recibe el cuerpo crudo antes de los middlewares globales ----
+app.post("/api/tebex/webhook",
+  express.raw({ type: () => true, limit: "256kb" }),
+  (req, res, next) => {
+    req.rawBody = req.body;
+    req.tebexWebhook = true;
+    next();
+  }
+);
+
 // 17. Límite de la API por IP + peticiones que cambian datos: mismo origen y JSON (así otra web no puede lanzarlas)
 app.use("/api", (req, res, next) => {
+  if (req.tebexWebhook) return next();
   res.set("Cache-Control", "no-store");
   if (!hit("a|" + req.ip, 300, 60000) || (req.method !== "GET" && !hit("w|" + req.ip, 60, 60000))) return res.set("Retry-After", "60").status(429).json({ error: "Demasiadas peticiones. Espera un momento." });
   if (req.method !== "GET") {
@@ -90,8 +101,11 @@ app.use("/api", (req, res, next) => {
   }
   next();
 });
-app.use((req, res, next) => (req.path === "/api/photos" ? next() : express.json({ limit: "20kb" })(req, res, next)));
 
+app.use((req, res, next) => {
+  if (req.tebexWebhook || req.path === "/api/photos") return next();
+  return express.json({ limit: "20kb" })(req, res, next);
+});
 const me = async (req) => {
   const id = sessionId(req);
   if (!id) return null;
