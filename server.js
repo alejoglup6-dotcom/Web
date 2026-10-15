@@ -1016,8 +1016,8 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_friends (a INT NOT NULL, b INT NOT NULL, status TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (a, b), KEY b (b, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_vacancies (id INT AUTO_INCREMENT PRIMARY KEY, kind VARCHAR(8) NOT NULL, title VARCHAR(80) NOT NULL, faction VARCHAR(60) NOT NULL DEFAULT '', description TEXT NOT NULL, requirements TEXT NOT NULL, questions TEXT NOT NULL, slots INT NOT NULL DEFAULT 0, min_level INT NOT NULL DEFAULT 0, need_discord TINYINT NOT NULL DEFAULT 0, open TINYINT NOT NULL DEFAULT 1, created_by VARCHAR(24) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY o (open, id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_applications (id INT AUTO_INCREMENT PRIMARY KEY, vacancy_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, answers TEXT NOT NULL, about VARCHAR(800) NOT NULL DEFAULT '', status TINYINT NOT NULL DEFAULT 0, note VARCHAR(300) NOT NULL DEFAULT '', reviewed_by VARCHAR(24) NULL, reviewed_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY vp (vacancy_id, player_id), KEY pl (player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    // ---- Tienda SampCity: productos, pedidos, pagos, entregas y eventos de Tebex ----
 
+  // ---- Tienda SampCity: productos, pedidos, pagos, entregas y eventos de Tebex ----
   await q(`CREATE TABLE IF NOT EXISTS store_products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tebex_package_id INT NOT NULL UNIQUE,
@@ -1091,6 +1091,7 @@ app.use((err, req, res, next) => {
     (tebex_package_id, name, kind, amount, active)
     VALUES (7726831, '10 Coins', 'coins', 10, 0)
     ON DUPLICATE KEY UPDATE name = VALUES(name), kind = VALUES(kind), amount = VALUES(amount)`);
+
   setInterval(cleanup, 3600000).unref(); cleanup();
   console.log(FFMPEG ? `[reel] ffmpeg disponible: los reels pesados se convierten a MP4 liviano (${FFMPEG})` : "[reel] sin ffmpeg: los reels se guardan tal cual (instala ffmpeg-static para convertirlos)");
   app.listen(Number(E.PORT) || 3000, () => console.log(`[web] SampCity en ${BASE}`));
