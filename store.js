@@ -69,16 +69,18 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     for (const product of products) {
       try {
         const remote = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/packages/${product.tebex_package_id}`);
+        const packageData = remote.data || remote;
 
         catalog.push({
           packageId: product.tebex_package_id,
+          packageIdent: packageData.ident || null,
           name: product.name,
           kind: product.kind,
           amount: product.amount,
-          tebexName: remote.name || product.name,
-          price: remote.total_price ?? remote.base_price ?? null,
-          currency: remote.currency || "USD",
-          description: remote.description || "",
+          tebexName: packageData.name || product.name,
+          price: packageData.total_price ?? packageData.base_price ?? null,
+          currency: packageData.currency || "USD",
+          description: packageData.description || "",
         });
       } catch (error) {
         console.log("[store] no pude consultar el paquete", product.tebex_package_id, error.message);
@@ -99,36 +101,35 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!hit(`store|${user.id}`, 10, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
 
+    // Obtenemos el identificador oficial del paquete.
+    const remotePackage = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/packages/${product.tebex_package_id}`);
+    const packageData = remotePackage.data || remotePackage;
+    const packageIdent = packageData.ident || String(product.tebex_package_id);
+
     const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets`, {
       method: "POST",
       body: JSON.stringify({
         complete_url: `${BASE}/tienda?pedido=creado`,
         cancel_url: `${BASE}/tienda?pedido=cancelado`,
         complete_auto_redirect: true,
+        custom: {
+          sampcity_player_id: String(user.id),
+          sampcity_package_id: String(product.tebex_package_id),
+        },
       }),
     });
 
-    console.log("[store] respuesta de creación de carrito:", JSON.stringify(basket).slice(0, 1500));
-
-    const basketIdent =
-      basket.ident ||
-      basket.id ||
-      basket.data?.ident ||
-      basket.data?.id ||
-      basket.basket?.ident ||
-      basket.basket?.id;
+    const basketData = basket.data || basket;
+    const basketIdent = basketData.ident || basketData.id;
 
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
-    await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets/${encodeURIComponent(basketIdent)}/packages`, {
+    // Endpoint correcto: /accounts/{token}/{basketIdent}/packages
+    await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/${encodeURIComponent(basketIdent)}/packages`, {
       method: "POST",
       body: JSON.stringify({
-        package_id: String(product.tebex_package_id),
+        package_id: packageIdent,
         quantity: 1,
-        custom: {
-          sampcity_order_reference: `order:${basketIdent}`,
-          sampcity_player_id: String(user.id),
-        },
       }),
     });
 
@@ -141,7 +142,7 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
       ok: true,
       orderId: order.insertId,
       basketIdent,
-      checkoutUrl: basket.links?.checkout || null,
+      checkoutUrl: basketData.links?.checkout || null,
     });
   });
 
@@ -173,7 +174,8 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     if (order.status !== "pending") return res.status(409).json({ error: "Este pedido ya no está pendiente" });
 
     const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets/${encodeURIComponent(basketIdent)}`);
-    const checkoutUrl = basket.links?.checkout;
+    const basketData = basket.data || basket;
+    const checkoutUrl = basketData.links?.checkout;
 
     if (!checkoutUrl) return res.status(502).json({ error: "Tebex no devolvió un enlace de pago" });
 
