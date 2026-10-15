@@ -128,7 +128,7 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     console.log("[store] carrito creado:", JSON.stringify(basketData).slice(0, 1000));
 
     try {
-      await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets/${encodeURIComponent(basketIdent)}/packages`, {
+      await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
         method: "POST",
         body: JSON.stringify({
           package_id: packageIdent,
