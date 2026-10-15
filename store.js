@@ -102,7 +102,6 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets`, {
       method: "POST",
       body: JSON.stringify({
-        username: user.name,
         complete_url: `${BASE}/tienda?pedido=creado`,
         cancel_url: `${BASE}/tienda?pedido=cancelado`,
         complete_auto_redirect: true,
