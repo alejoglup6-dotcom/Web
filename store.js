@@ -124,8 +124,8 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
-    // Endpoint correcto: /accounts/{token}/{basketIdent}/packages
-    await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/${encodeURIComponent(basketIdent)}/packages`, {
+    // Endpoint correcto: /baskets/{basketIdent}/packages
+    await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
       method: "POST",
       body: JSON.stringify({
         package_id: packageIdent,
@@ -157,7 +157,7 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     const order = await orderForBasket(basketIdent);
     if (!order || Number(order.player_id) !== Number(user.id)) return res.status(404).json({ error: "Carrito no válido" });
 
-    const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets/${encodeURIComponent(basketIdent)}`);
+    const basket = await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}`);
     res.json({ order: { id: order.id, status: order.status }, basket });
   });
 
@@ -173,7 +173,7 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     if (!order || Number(order.player_id) !== Number(user.id)) return res.status(404).json({ error: "Carrito no válido" });
     if (order.status !== "pending") return res.status(409).json({ error: "Este pedido ya no está pendiente" });
 
-    const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets/${encodeURIComponent(basketIdent)}`);
+    const basket = await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}`);
     const basketData = basket.data || basket;
     const checkoutUrl = basketData.links?.checkout;
 
