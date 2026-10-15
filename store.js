@@ -125,19 +125,6 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
-    // Autorizamos el carrito con el ID del jugador antes de añadir el paquete.
-    try {
-      await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/accounts`, {
-        method: "PUT",
-        body: JSON.stringify({
-          username_id: String(user.id),
-        }),
-      });
-      console.log("[store] carrito autorizado para jugador", user.id);
-    } catch (error) {
-      console.log("[store] no se pudo autorizar el carrito:", error.message);
-    }
-
     try {
       await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
         method: "POST",
