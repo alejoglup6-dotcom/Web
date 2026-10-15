@@ -191,8 +191,12 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
   });
 
   // ---- Webhook de Tebex ----
-  app.post(WEBHOOK_PATH, express.raw({ type: () => true, limit: "256kb" }), async (req, res) => {
-    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
+  // El cuerpo crudo llega desde server.js en req.rawBody.
+  app.post(WEBHOOK_PATH, async (req, res) => {
+    const raw = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.rawBody === "string" ? req.rawBody : "");
+
     const signature = String(req.headers["x-signature"] || "");
     let event = {};
 
@@ -226,6 +230,12 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     if (!signatureValid) {
       console.log("[store] webhook rechazado: firma inválida");
       return res.status(401).json({ error: "Firma inválida" });
+    }
+
+    // Tebex envía este evento al crear el webhook y espera que devolvamos su id.
+    if (eventType === "validation.webhook") {
+      await q("UPDATE store_webhook_events SET processed = 1 WHERE id = ?", [saved.insertId]);
+      return res.status(200).json({ id: event.id });
     }
 
     if (eventType !== "payment.completed") {
