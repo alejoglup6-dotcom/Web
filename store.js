@@ -100,6 +100,12 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!hit(`store|${user.id}`, 10, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
 
+    // Obtenemos la ficha completa del paquete para ver si requiere opciones o autorización.
+    const remotePackage = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/packages/${product.tebex_package_id}`);
+    const packageData = remotePackage.data || remotePackage;
+
+    console.log("[store] ficha del paquete:", JSON.stringify(packageData).slice(0, 2000));
+
     const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets`, {
       method: "POST",
       body: JSON.stringify({
@@ -118,7 +124,6 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
-    // Tebex espera el ID numérico del paquete, no su ident.
     await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
       method: "POST",
       body: JSON.stringify({
