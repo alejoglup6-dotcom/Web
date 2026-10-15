@@ -100,7 +100,7 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!hit(`store|${user.id}`, 10, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
 
-    // Obtenemos la ficha del paquete y usamos su ident oficial.
+    // Ficha completa del paquete.
     const remotePackage = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/packages/${product.tebex_package_id}`);
     const packageData = remotePackage.data || remotePackage;
     const packageIdent = packageData.ident;
@@ -125,14 +125,32 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
-    // Ruta correcta + ident completo del paquete.
-    await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
-      method: "POST",
-      body: JSON.stringify({
-        package_id: packageIdent,
-        quantity: 1,
-      }),
-    });
+    // Autorizamos el carrito con el ID del jugador antes de añadir el paquete.
+    try {
+      await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/accounts`, {
+        method: "PUT",
+        body: JSON.stringify({
+          username_id: String(user.id),
+        }),
+      });
+      console.log("[store] carrito autorizado para jugador", user.id);
+    } catch (error) {
+      console.log("[store] no se pudo autorizar el carrito:", error.message);
+    }
+
+    try {
+      await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
+        method: "POST",
+        body: JSON.stringify({
+          package_id: packageIdent,
+          quantity: 1,
+        }),
+      });
+    } catch (error) {
+      // Si falla, registramos la ficha completa del paquete para ver qué opción exige.
+      console.log("[store] ficha completa del paquete:", JSON.stringify(packageData));
+      throw error;
+    }
 
     const order = await q(
       "INSERT INTO store_orders (player_id, product_id, status, tebex_basket_id) VALUES (?, ?, 'pending', ?)",
