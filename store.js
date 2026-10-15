@@ -209,7 +209,16 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     try {
       if (webhookSecret && signature) {
-        const expected = crypto.createHmac("sha256", webhookSecret).update(raw).digest("hex");
+        // Tebex firma HMAC-SHA256(secret, SHA256(body)), no HMAC-SHA256(secret, body).
+        const bodyHash = crypto
+          .createHash("sha256")
+          .update(raw.toString("utf8"), "utf8")
+          .digest("hex");
+
+        const expected = crypto
+          .createHmac("sha256", webhookSecret)
+          .update(bodyHash)
+          .digest("hex");
 
         signatureValid = crypto.timingSafeEqual(
           Buffer.from(signature.toLowerCase()),
