@@ -108,7 +108,16 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
       }),
     });
 
-    const basketIdent = basket.ident || basket.id;
+    console.log("[store] respuesta de creación de carrito:", JSON.stringify(basket).slice(0, 1500));
+
+    const basketIdent =
+      basket.ident ||
+      basket.id ||
+      basket.data?.ident ||
+      basket.data?.id ||
+      basket.basket?.ident ||
+      basket.basket?.id;
+
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
     await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets/${encodeURIComponent(basketIdent)}/packages`, {
