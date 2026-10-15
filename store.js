@@ -73,7 +73,6 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
         catalog.push({
           packageId: product.tebex_package_id,
-          packageIdent: packageData.ident || null,
           name: product.name,
           kind: product.kind,
           amount: product.amount,
@@ -101,11 +100,6 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!hit(`store|${user.id}`, 10, 60000)) return res.status(429).json({ error: "Vas muy rápido, espera un momento" });
 
-    // Obtenemos el identificador oficial del paquete.
-    const remotePackage = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/packages/${product.tebex_package_id}`);
-    const packageData = remotePackage.data || remotePackage;
-    const packageIdent = packageData.ident || String(product.tebex_package_id);
-
     const basket = await tebexFetch(`/accounts/${encodeURIComponent(publicToken)}/baskets`, {
       method: "POST",
       body: JSON.stringify({
@@ -124,11 +118,11 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
 
     if (!basketIdent) return res.status(502).json({ error: "No se pudo crear el carrito" });
 
-    // Endpoint correcto: /baskets/{basketIdent}/packages
+    // Tebex espera el ID numérico del paquete, no su ident.
     await tebexFetch(`/baskets/${encodeURIComponent(basketIdent)}/packages`, {
       method: "POST",
       body: JSON.stringify({
-        package_id: packageIdent,
+        package_id: String(product.tebex_package_id),
         quantity: 1,
       }),
     });
