@@ -990,6 +990,8 @@ app.post("/api/applications/:id(\\d+)/review", async (req, res) => { // status: 
   if (st === 1 && a.slots > 0 && Number((await q("SELECT COUNT(*) AS n FROM web_applications WHERE vacancy_id = ? AND status = 1", [a.vacancy_id]))[0].n) >= a.slots) { await q("UPDATE web_vacancies SET open = 0 WHERE id = ?", [a.vacancy_id]); closed = true; } // cupos llenos: se cierra sola
   res.json({ ok: true, closed });
 });
+// ---- Tienda SampCity ----
+store(app, { q, me, hit, str, pid, E, BASE });
 // Página 404 propia (la API responde JSON)
 app.use((req, res) => (req.path.startsWith("/api/") ? res.status(404).json({ error: "No existe" }) : res.status(404).sendFile(path.join(__dirname, "public", "404.html"))));
 app.use((err, req, res, next) => {
