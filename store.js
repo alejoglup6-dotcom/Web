@@ -31,6 +31,7 @@ module.exports = function store(app, { q, me, hit, str, pid, E, BASE }) {
     try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text.slice(0, 500) }; }
 
     if (!response.ok) {
+      console.log("[store] Tebex rechazó", path, response.status, JSON.stringify(data).slice(0, 1000));
       const error = new Error(data.message || data.error || `Tebex respondió ${response.status}`);
       error.status = response.status;
       error.tebex = data;
