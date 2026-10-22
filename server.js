@@ -236,6 +236,14 @@ app.get("/auth/discord/callback", async (req, res) => {
     console.log("[discord]", motivo, info);
     return res.redirect(`${back}?discord=error&motivo=${motivo}`);
   };
+  // Discord a veces contesta con una página HTML (Cloudflare) en vez de JSON: se apunta qué devolvió y en qué paso
+  const dj = async (paso, r) => {
+    const txt = await r.text();
+    try { return JSON.parse(txt); } catch {
+      const h = r.headers;
+      throw Object.assign(new Error("respuesta no JSON"), { paso, info: `${paso} HTTP ${r.status} type=${h.get("content-type") || "-"} cf-ray=${h.get("cf-ray") || "-"} retry-after=${h.get("retry-after") || "-"} x-ratelimit-global=${h.get("x-ratelimit-global") || "-"} x-ratelimit-scope=${h.get("x-ratelimit-scope") || "-"} server=${h.get("server") || "-"} cuerpo=${txt.slice(0, 300).replace(/\s+/g, " ")}` });
+    }
+  };
   try {
     if (req.query.error) return fail("cancelado", String(req.query.error)); // pulsó Cancelar en Discord
     const saved = DSTATE.get(qs);
@@ -243,9 +251,9 @@ app.get("/auth/discord/callback", async (req, res) => {
     if (!saved || saved.until < Date.now() || typeof req.query.code !== "string" || !req.query.code) return fail("estado");
     const u = (await q("SELECT id, name, admin_level FROM player WHERE id = ?", [saved.playerId]))[0];
     if (!u) return fail("sesion");
-    const t = await (await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }), signal: AbortSignal.timeout(10000) })).json();
+    const t = await dj("token", await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }), signal: AbortSignal.timeout(10000) }));
     if (!t.access_token) return fail("token", JSON.stringify(t).slice(0, 200)); // casi siempre DISCORD_CLIENT_SECRET mal puesto
-    const d = await (await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` }, signal: AbortSignal.timeout(10000) })).json();
+    const d = await dj("usuario", await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` }, signal: AbortSignal.timeout(10000) }));
     if (!/^\d+$/.test(d.id || "")) return fail("usuario", JSON.stringify(d).slice(0, 200));
     const rows = await q("SELECT dl.player_id, dl.discord_id, p.name FROM discord_links dl LEFT JOIN player p ON p.id = dl.player_id WHERE dl.discord_id = ? OR dl.player_id = ?", [d.id, u.id]);
     const same = rows.find((r) => Number(r.player_id) === Number(u.id) && String(r.discord_id) === d.id);
@@ -259,7 +267,7 @@ app.get("/auth/discord/callback", async (req, res) => {
       await notify(u.id, { id: 0 }, "discord");
     }
     res.redirect(back + "?discord=ok"); // el bot ve el enlace nuevo y pone el rol de verificado y el apodo
-  } catch (e) { return fail("servidor", e.message); }
+  } catch (e) { return e.paso ? fail("limite", e.info) : fail("servidor", e.message); }
 });
 app.delete("/api/discord", async (req, res) => {
   const u = await me(req);
