@@ -218,6 +218,10 @@ app.get("/api/me", async (req, res) => {
 // El "state" se guarda aquí (por cuenta, 10 min) y no en una cookie: algunos navegadores no la devolvían al volver de
 // Discord y el enlace fallaba sin decir nada. Siempre se vuelve a la página de donde se vino (lo dice el propio state).
 const DSTATE = new Map(); // state -> { playerId, next, until }
+// El código lo canjea el bot desde QoreHost (tabla discord_oauth_queue): Cloudflare bloquea a veces la IP de salida de
+// Render (429 del 22-oct-2026). La página /verificar espera el resultado con /api/discord/estado.
+// DISCORD_OAUTH_MODO=web vuelve a canjearlo aquí.
+const OAUTH_VIA_BOT = String(E.DISCORD_OAUTH_MODO || "bot").toLowerCase() !== "web";
 app.get("/auth/discord", async (req, res) => {
   const u = await me(req);
   const next = req.query.next === "verificar" ? "verificar" : "perfil"; // a dónde se vuelve después
@@ -251,6 +255,11 @@ app.get("/auth/discord/callback", async (req, res) => {
     if (!saved || saved.until < Date.now() || typeof req.query.code !== "string" || !req.query.code) return fail("estado");
     const u = (await q("SELECT id, name, admin_level FROM player WHERE id = ?", [saved.playerId]))[0];
     if (!u) return fail("sesion");
+    if (OAUTH_VIA_BOT) {
+      const token = crypto.randomBytes(16).toString("hex");
+      await q("INSERT INTO discord_oauth_queue (token, player_id, back, code) VALUES (?, ?, ?, ?)", [token, u.id, back === "/verificar" ? "verificar" : "perfil", String(req.query.code)]);
+      return res.redirect(`/verificar?discord=pendiente&req=${token}`);
+    }
     const t = await dj("token", await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: E.DISCORD_CLIENT_ID, client_secret: E.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE}/auth/discord/callback` }), signal: AbortSignal.timeout(10000) }));
     if (!t.access_token) return fail("token", JSON.stringify(t).slice(0, 200)); // casi siempre DISCORD_CLIENT_SECRET mal puesto
     const d = await dj("usuario", await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${t.access_token}` }, signal: AbortSignal.timeout(10000) }));
@@ -268,6 +277,17 @@ app.get("/auth/discord/callback", async (req, res) => {
     }
     res.redirect(back + "?discord=ok"); // el bot ve el enlace nuevo y pone el rol de verificado y el apodo
   } catch (e) { return e.paso ? fail("limite", e.info) : fail("servidor", e.message); }
+});
+// Resultado del canje que hace el bot. Solo lo ve la cuenta que lo pidió; el aviso "discord" se crea una vez.
+app.get("/api/discord/estado", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const id = sessionId(req);
+  if (!id) return res.status(401).json({ error: "Inicia sesión" });
+  const tk = typeof req.query.req === "string" && /^[0-9a-f]{32}$/.test(req.query.req) ? req.query.req : "";
+  const r = tk ? (await q("SELECT id, status, motivo, cuenta, back, notified FROM discord_oauth_queue WHERE token = ? AND player_id = ?", [tk, id]))[0] : null;
+  if (!r) return res.status(404).json({ error: "No encontrado" });
+  if (r.status === "hecho" && !Number(r.notified) && (await q("UPDATE discord_oauth_queue SET notified = 1 WHERE id = ? AND notified = 0", [r.id])).affectedRows === 1) await notify(id, { id: 0 }, "discord");
+  res.json({ estado: r.status, motivo: r.motivo, cuenta: r.cuenta, back: r.back });
 });
 app.delete("/api/discord", async (req, res) => {
   const u = await me(req);
@@ -1038,6 +1058,9 @@ app.use((err, req, res, next) => {
   await q("CREATE TABLE IF NOT EXISTS web_tags (post_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, PRIMARY KEY (post_id, player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_notifs (id INT AUTO_INCREMENT PRIMARY KEY, player_id INT NOT NULL, actor_id INT NOT NULL DEFAULT 0, type VARCHAR(12) NOT NULL, post_id INT NULL, body VARCHAR(160) NOT NULL DEFAULT '', seen TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY pl (player_id, id), KEY pu (player_id, seen), KEY po (post_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_saved (post_id INT NOT NULL, player_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (post_id, player_id), KEY pl (player_id, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  // Códigos de Discord que canjea el bot (src/handlers/functions/discordOauth.js del bot). Sin clave foránea a player;
+  // el bot borra las filas de más de una hora. Si cambia, cambiarla igual en el bot.
+  await q(`CREATE TABLE IF NOT EXISTS discord_oauth_queue (id INT NOT NULL AUTO_INCREMENT, token CHAR(32) NOT NULL, player_id INT NOT NULL, back VARCHAR(10) NOT NULL DEFAULT 'verificar', code VARCHAR(100) NULL, status VARCHAR(20) NOT NULL DEFAULT 'pendiente', motivo VARCHAR(16) NOT NULL DEFAULT '', cuenta VARCHAR(24) NOT NULL DEFAULT '', discord_id VARCHAR(20) NULL, detail VARCHAR(255) NOT NULL DEFAULT '', notified TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY token (token), KEY pending (status, id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   await q("CREATE TABLE IF NOT EXISTS web_friends (a INT NOT NULL, b INT NOT NULL, status TINYINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (a, b), KEY b (b, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_vacancies (id INT AUTO_INCREMENT PRIMARY KEY, kind VARCHAR(8) NOT NULL, title VARCHAR(80) NOT NULL, faction VARCHAR(60) NOT NULL DEFAULT '', description TEXT NOT NULL, requirements TEXT NOT NULL, questions TEXT NOT NULL, slots INT NOT NULL DEFAULT 0, min_level INT NOT NULL DEFAULT 0, need_discord TINYINT NOT NULL DEFAULT 0, open TINYINT NOT NULL DEFAULT 1, created_by VARCHAR(24) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY o (open, id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   await q("CREATE TABLE IF NOT EXISTS web_applications (id INT AUTO_INCREMENT PRIMARY KEY, vacancy_id INT NOT NULL, player_id INT NOT NULL, name VARCHAR(24) NOT NULL, answers TEXT NOT NULL, about VARCHAR(800) NOT NULL DEFAULT '', status TINYINT NOT NULL DEFAULT 0, note VARCHAR(300) NOT NULL DEFAULT '', reviewed_by VARCHAR(24) NULL, reviewed_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY vp (vacancy_id, player_id), KEY pl (player_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
