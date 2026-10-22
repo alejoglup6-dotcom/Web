@@ -127,7 +127,7 @@ async function pg_feed(ty){const r=await api("/posts?type="+ty+"&page="+PG);if(!
 let RENDER=null;
 async function show(){const my=++tok,m=$("#main");m.setAttribute("aria-busy","true");m.innerHTML=sk();
  const h=await RENDER();if(my!==tok)return;
- m.innerHTML=h;m.setAttribute("aria-busy","false");m.classList.remove("swap");void m.offsetWidth;m.classList.add("swap");reveal();document.title=(window.PTITLE||t(NAV.find(n=>n[0]===view)[2]))+" | SampCity RolePlay";scrollTo(0,0)}
+ m.innerHTML=h;m.setAttribute("aria-busy","false");m.classList.remove("swap");void m.offsetWidth;m.classList.add("swap");reveal();const nv=NAV.find(n=>n[0]===view);document.title=(window.PTITLE||(nv?t(nv[2]):"SampCity"))+" | SampCity RolePlay";scrollTo(0,0)}
 function mountPage(fn){RENDER=fn;boot()}
 async function boot(){const q=new URLSearchParams(location.search),h=location.hash.slice(1);
  if(view==="news"&&R[h]&&R[h]!==location.pathname)return location.replace(R[h]); // enlaces viejos tipo /#fotos
